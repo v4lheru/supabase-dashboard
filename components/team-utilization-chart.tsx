@@ -2,22 +2,35 @@
 
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
+import { TeamMember } from "@/lib/types"
 
-export function TeamUtilizationChart() {
-  // Mock data - in real app, this would come from props or context
-  const totalRetainerHours = 160 // Total monthly retainer hours for the project
-  const totalHoursSpent = 142 // Total hours spent this month
-  const overallUtilization = (totalHoursSpent / totalRetainerHours) * 100
+interface TeamUtilizationChartProps {
+  teamMembers: TeamMember[]
+  totalAllocatedHours: number
+  totalSpentHours: number
+}
 
-  const teamMembers = [
-    { name: "Alex Johnson", role: "Developer", hoursSpent: 45, allocation: 50, utilization: 90 },
-    { name: "Sarah Chen", role: "Designer", hoursSpent: 38, allocation: 40, utilization: 95 },
-    { name: "Mike Rodriguez", role: "PM", hoursSpent: 32, allocation: 35, utilization: 91 },
-    { name: "Emma Wilson", role: "QA", hoursSpent: 27, allocation: 35, utilization: 77 },
-  ]
+export function TeamUtilizationChart({ 
+  teamMembers, 
+  totalAllocatedHours, 
+  totalSpentHours 
+}: TeamUtilizationChartProps) {
+  // Calculate overall utilization
+  const overallUtilization = totalAllocatedHours > 0 ? (totalSpentHours / totalAllocatedHours) * 100 : 0
 
   // Sort by utilization to show most utilized first
-  const sortedTeamMembers = [...teamMembers].sort((a, b) => b.utilization - a.utilization)
+  const sortedTeamMembers = [...teamMembers].sort((a, b) => b.utilizationPercentage - a.utilizationPercentage)
+
+  // Show top 5 team members
+  const displayMembers = sortedTeamMembers.slice(0, 5)
+
+  if (teamMembers.length === 0) {
+    return (
+      <div className="text-center text-muted-foreground py-8">
+        <p>No team member data available</p>
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-6">
@@ -29,15 +42,17 @@ export function TeamUtilizationChart() {
         </div>
         <Progress value={overallUtilization} className="h-3" />
         <div className="flex justify-between text-xs text-muted-foreground mt-2">
-          <span>{totalHoursSpent}h spent</span>
-          <span>{totalRetainerHours}h allocated</span>
+          <span>{totalSpentHours.toFixed(1)}h spent</span>
+          <span>{totalAllocatedHours}h allocated</span>
         </div>
       </div>
 
       {/* Individual Team Member Utilization */}
       <div className="space-y-3">
-        <h4 className="text-sm font-medium text-muted-foreground">Team Member Utilization</h4>
-        {sortedTeamMembers.map((member, index) => (
+        <h4 className="text-sm font-medium text-muted-foreground">
+          Team Member Utilization (This Month)
+        </h4>
+        {displayMembers.map((member, index) => (
           <div key={member.name} className="flex items-center gap-3">
             <Avatar className="h-8 w-8">
               <AvatarFallback className="text-xs">
@@ -51,20 +66,36 @@ export function TeamUtilizationChart() {
               <div className="flex justify-between text-sm">
                 <div className="flex items-center gap-2">
                   <span className="font-medium">{member.name}</span>
-                  <span className="text-muted-foreground">({member.role})</span>
-                  {index === 0 && (
-                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">Most Utilized</span>
+                  {index === 0 && sortedTeamMembers.length > 1 && (
+                    <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                      Most Utilized
+                    </span>
                   )}
                 </div>
                 <span className="text-xs text-muted-foreground">
-                  {member.hoursSpent}h / {member.allocation}h
+                  {member.hoursSpentThisMonth}h this month • {member.taskCountThisMonth} tasks
                 </span>
               </div>
-              <Progress value={member.utilization} className="h-1.5" />
+              <Progress value={Math.min(member.utilizationPercentage, 100)} className="h-1.5" />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>All time: {member.hoursSpent}h • {member.taskCount} tasks</span>
+                <span className={`font-medium ${
+                  member.utilizationPercentage > 100 ? 'text-red-600' : 
+                  member.utilizationPercentage > 80 ? 'text-orange-600' : 
+                  'text-green-600'
+                }`}>
+                  {member.utilizationPercentage.toFixed(1)}%
+                </span>
+              </div>
             </div>
-            <div className="text-sm font-medium w-12 text-right">{member.utilization}%</div>
           </div>
         ))}
+        
+        {teamMembers.length > 5 && (
+          <div className="text-xs text-muted-foreground text-center pt-2">
+            Showing top 5 of {teamMembers.length} team members
+          </div>
+        )}
       </div>
     </div>
   )

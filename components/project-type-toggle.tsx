@@ -3,8 +3,8 @@
 import { Badge } from "@/components/ui/badge"
 
 interface ProjectTypeToggleProps {
-  value: "one-time" | "retainer"
-  onChange: (value: "one-time" | "retainer") => void
+  value: "one-time" | "on-going"
+  onChange: (value: "one-time" | "on-going") => void
   disabled?: boolean
 }
 
@@ -19,11 +19,11 @@ export function ProjectTypeToggle({ value, onChange, disabled = false }: Project
         One Time Project
       </Badge>
       <Badge
-        variant={value === "retainer" ? "default" : "outline"}
+        variant={value === "on-going" ? "default" : "outline"}
         className={`cursor-pointer ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
-        onClick={() => !disabled && onChange("retainer")}
+        onClick={() => !disabled && onChange("on-going")}
       >
-        Retainer Project
+        On-going Project
       </Badge>
     </div>
   )

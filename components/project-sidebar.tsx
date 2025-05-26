@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ChevronDown, ChevronRight, Folder, FolderOpen, BarChart3 } from "lucide-react"
 import {
   Sidebar,
@@ -14,30 +14,36 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
+import { getClientMappings } from "@/lib/data-services"
+import { ClientMapping } from "@/lib/types"
 
 interface ProjectSidebarProps {
   selectedProject: string
   onProjectSelect: (projectId: string) => void
 }
 
-const vezaProjects = [
-  { id: "veza-dagster", name: "Dagster" },
-  { id: "veza-webconnex", name: "Webconnex" },
-  { id: "veza-mobile-app", name: "Mobile App Development" },
-  { id: "veza-website-redesign", name: "Website Redesign" },
-  { id: "veza-crm-integration", name: "CRM Integration" },
-]
-
-const shadowProjects = [
-  { id: "shadow-brand-identity", name: "Brand Identity Package" },
-  { id: "shadow-marketing-campaign", name: "Marketing Campaign" },
-  { id: "shadow-social-media", name: "Social Media Management" },
-  { id: "shadow-content-strategy", name: "Content Strategy" },
-]
-
 export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSidebarProps) {
-  const [vezaExpanded, setVezaExpanded] = useState(true)
-  const [shadowExpanded, setShadowExpanded] = useState(true)
+  const [clientsExpanded, setClientsExpanded] = useState(true)
+  const [clients, setClients] = useState<ClientMapping[]>([])
+  const [loading, setLoading] = useState(true)
+
+  // 🔄 Fetch client mappings on component mount
+  useEffect(() => {
+    async function fetchClients() {
+      try {
+        console.log('🔍 Fetching clients for sidebar...')
+        const clientData = await getClientMappings()
+        setClients(clientData)
+        console.log('✅ Loaded', clientData.length, 'clients for sidebar')
+      } catch (error) {
+        console.error('💥 Failed to fetch clients for sidebar:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchClients()
+  }, [])
 
   return (
     <Sidebar className="border-r">
@@ -63,34 +69,34 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
 
           <SidebarMenuItem>
             <SidebarMenuButton
-              isActive={selectedProject === "veza-digital"}
-              onClick={() => onProjectSelect("veza-digital")}
+              isActive={selectedProject === "on-going"}
+              onClick={() => onProjectSelect("on-going")}
               className="w-full justify-start"
             >
               <BarChart3 className="h-4 w-4" />
-              <span>Veza Digital Projects</span>
+              <span>On-going Projects</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
           <SidebarMenuItem>
             <SidebarMenuButton
-              isActive={selectedProject === "shadow-digital"}
-              onClick={() => onProjectSelect("shadow-digital")}
+              isActive={selectedProject === "one-time"}
+              onClick={() => onProjectSelect("one-time")}
               className="w-full justify-start"
             >
               <BarChart3 className="h-4 w-4" />
-              <span>Shadow Digital Projects</span>
+              <span>One-time Projects</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
 
         <div className="mt-4 space-y-2">
-          <Collapsible open={vezaExpanded} onOpenChange={setVezaExpanded}>
+          <Collapsible open={clientsExpanded} onOpenChange={setClientsExpanded}>
             <CollapsibleTrigger asChild>
               <SidebarMenuButton className="w-full justify-start">
-                {vezaExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
-                <span>Veza Digital</span>
-                {vezaExpanded ? (
+                {clientsExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
+                <span>All Clients</span>
+                {clientsExpanded ? (
                   <ChevronDown className="h-4 w-4 ml-auto" />
                 ) : (
                   <ChevronRight className="h-4 w-4 ml-auto" />
@@ -99,44 +105,35 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
             </CollapsibleTrigger>
             <CollapsibleContent>
               <SidebarMenuSub>
-                {vezaProjects.map((project) => (
-                  <SidebarMenuSubItem key={project.id}>
-                    <SidebarMenuSubButton
-                      isActive={selectedProject === project.id}
-                      onClick={() => onProjectSelect(project.id)}
-                    >
-                      {project.name}
+                {loading ? (
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton>
+                      Loading clients...
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
-                ))}
-              </SidebarMenuSub>
-            </CollapsibleContent>
-          </Collapsible>
-
-          <Collapsible open={shadowExpanded} onOpenChange={setShadowExpanded}>
-            <CollapsibleTrigger asChild>
-              <SidebarMenuButton className="w-full justify-start">
-                {shadowExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
-                <span>Shadow Digital</span>
-                {shadowExpanded ? (
-                  <ChevronDown className="h-4 w-4 ml-auto" />
+                ) : clients.length === 0 ? (
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton>
+                      No clients found
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
                 ) : (
-                  <ChevronRight className="h-4 w-4 ml-auto" />
+                  clients.map((client) => (
+                    <SidebarMenuSubItem key={client.id}>
+                      <SidebarMenuSubButton
+                        isActive={selectedProject === client.client_name}
+                        onClick={() => onProjectSelect(client.client_name)}
+                      >
+                        <span>{client.client_name}</span>
+                        {client.project_type && (
+                          <span className="ml-auto text-xs text-muted-foreground">
+                            {client.project_type === 'on-going' ? '🔄' : '📋'}
+                          </span>
+                        )}
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  ))
                 )}
-              </SidebarMenuButton>
-            </CollapsibleTrigger>
-            <CollapsibleContent>
-              <SidebarMenuSub>
-                {shadowProjects.map((project) => (
-                  <SidebarMenuSubItem key={project.id}>
-                    <SidebarMenuSubButton
-                      isActive={selectedProject === project.id}
-                      onClick={() => onProjectSelect(project.id)}
-                    >
-                      {project.name}
-                    </SidebarMenuSubButton>
-                  </SidebarMenuSubItem>
-                ))}
               </SidebarMenuSub>
             </CollapsibleContent>
           </Collapsible>

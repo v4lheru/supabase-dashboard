@@ -8,11 +8,11 @@ import { Clock, DollarSign, TrendingUp, Users, Target, BarChart3 } from "lucide-
 import { AllProjectsTypeToggle } from "@/components/all-projects-type-toggle"
 import { ProjectHealthCard } from "@/components/project-health-card"
 import { AllProjectsList } from "@/components/all-projects-list"
+import { ProjectAnalytics, ProjectTypeFilter } from "@/lib/types"
 
 interface AllProjectsOverviewProps {
-  projectData: any
-  filter: "one-time" | "retainer" | "all"
-  onFilterChange: (filter: "one-time" | "retainer" | "all") => void
+  projectData: ProjectAnalytics[]
+  filter: ProjectTypeFilter
   timePeriod: string
   onTimePeriodChange: (period: string) => void
 }
@@ -20,41 +20,31 @@ interface AllProjectsOverviewProps {
 export function AllProjectsOverview({
   projectData,
   filter,
-  onFilterChange,
   timePeriod,
   onTimePeriodChange,
 }: AllProjectsOverviewProps) {
-  // Calculate aggregated metrics based on filter
+  // 📊 Calculate aggregated metrics from ProjectAnalytics array
   const calculateAggregatedMetrics = () => {
-    const projects = Object.values(projectData)
-
-    let filteredProjects = projects
-    if (filter === "one-time") {
-      filteredProjects = projects.filter((p: any) => p.type === "one-time")
-    } else if (filter === "retainer") {
-      filteredProjects = projects.filter((p: any) => p.type === "retainer")
-    }
-    // If filter === "all", we keep all projects
-
     let totalRevenue = 0
     let totalDeliveryCost = 0
     let totalAllocatedHours = 0
     let totalSpentHours = 0
-    const projectCount = filteredProjects.length
+    let totalTasks = 0
+    let totalCompletedTasks = 0
+    let totalInProgressTasks = 0
+    let totalTodoTasks = 0
+    const projectCount = projectData.length
 
-    filteredProjects.forEach((project: any) => {
-      if (project.type === "one-time") {
-        totalRevenue += project.sowPrice
-        totalDeliveryCost += project.hoursSpent * project.averageHourlyRate
-        totalAllocatedHours += project.sowHours
-        totalSpentHours += project.hoursSpent
-      } else {
-        // For retainer projects, we'll use monthly values
-        totalRevenue += project.monthlyRetainer
-        totalDeliveryCost += project.hoursSpentThisMonth * project.averageHourlyRate
-        totalAllocatedHours += project.monthlyHours
-        totalSpentHours += project.hoursSpentThisMonth
-      }
+    projectData.forEach((analytics) => {
+      const { metrics } = analytics
+      totalRevenue += metrics.totalRevenue
+      totalDeliveryCost += metrics.deliveryCost
+      totalAllocatedHours += metrics.totalHours
+      totalSpentHours += metrics.hoursSpent
+      totalTasks += metrics.taskCount
+      totalCompletedTasks += metrics.completedTasks
+      totalInProgressTasks += metrics.inProgressTasks
+      totalTodoTasks += metrics.todoTasks
     })
 
     const totalProfit = totalRevenue - totalDeliveryCost
@@ -70,7 +60,10 @@ export function AllProjectsOverview({
       totalSpentHours,
       hoursUtilization,
       projectCount,
-      filteredProjects,
+      totalTasks,
+      totalCompletedTasks,
+      totalInProgressTasks,
+      totalTodoTasks,
     }
   }
 
@@ -80,8 +73,8 @@ export function AllProjectsOverview({
     switch (filter) {
       case "one-time":
         return "One-Time Projects Overview"
-      case "retainer":
-        return "Retainer Projects Overview"
+      case "on-going":
+        return "On-going Projects Overview"
       default:
         return "All Projects Overview"
     }
@@ -90,8 +83,8 @@ export function AllProjectsOverview({
   const getHoursLabel = () => {
     switch (filter) {
       case "one-time":
-        return "Total SOW Hours"
-      case "retainer":
+        return "Total Project Hours"
+      case "on-going":
         return "Monthly Hours"
       default:
         return "Total Hours"
@@ -101,8 +94,8 @@ export function AllProjectsOverview({
   const getRevenueLabel = () => {
     switch (filter) {
       case "one-time":
-        return "Total SOW Revenue"
-      case "retainer":
+        return "Total Project Revenue"
+      case "on-going":
         return "Monthly Recurring Revenue"
       default:
         return "Total Revenue"
@@ -133,17 +126,8 @@ export function AllProjectsOverview({
         </Select>
       </div>
 
-      {/* Project Type Filter and Core Metrics */}
+      {/* Core Metrics */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Project Filter</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <AllProjectsTypeToggle value={filter} onChange={onFilterChange} />
-          </CardContent>
-        </Card>
-
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -157,8 +141,8 @@ export function AllProjectsOverview({
               {filter === "all"
                 ? "Combined allocated hours"
                 : filter === "one-time"
-                  ? "Total SOW hours"
-                  : "Monthly hours across retainers"}
+                  ? "Total project hours"
+                  : "Monthly hours across projects"}
             </p>
           </CardContent>
         </Card>
@@ -173,7 +157,7 @@ export function AllProjectsOverview({
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold">{metrics.totalSpentHours}</span>
+                <span className="text-2xl font-bold">{Math.round(metrics.totalSpentHours)}</span>
                 <Badge
                   variant={
                     metrics.hoursUtilization > 90
@@ -188,9 +172,22 @@ export function AllProjectsOverview({
               </div>
               <Progress value={metrics.hoursUtilization} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {metrics.totalAllocatedHours - metrics.totalSpentHours} hours remaining
+                {Math.round(metrics.totalAllocatedHours - metrics.totalSpentHours)} hours remaining
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" />
+              Total Tasks
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.totalTasks}</div>
+            <p className="text-xs text-muted-foreground">Across all projects</p>
           </CardContent>
         </Card>
       </div>
@@ -210,7 +207,7 @@ export function AllProjectsOverview({
               {filter === "all"
                 ? "Combined revenue from all projects"
                 : filter === "one-time"
-                  ? "Total SOW value"
+                  ? "Total project value"
                   : "Monthly recurring revenue"}
             </p>
           </CardContent>
@@ -254,6 +251,55 @@ export function AllProjectsOverview({
         </Card>
       </div>
 
+      {/* Task Status Overview */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{metrics.totalTasks}</div>
+            <p className="text-xs text-muted-foreground">All tasks</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">Completed</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">{metrics.totalCompletedTasks}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics.totalTasks > 0 ? ((metrics.totalCompletedTasks / metrics.totalTasks) * 100).toFixed(1) : 0}% complete
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">In Progress</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-blue-600">{metrics.totalInProgressTasks}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics.totalTasks > 0 ? ((metrics.totalInProgressTasks / metrics.totalTasks) * 100).toFixed(1) : 0}% active
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm font-medium">To Do</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-gray-600">{metrics.totalTodoTasks}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics.totalTasks > 0 ? ((metrics.totalTodoTasks / metrics.totalTasks) * 100).toFixed(1) : 0}% pending
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
       {/* Project Health and Projects List */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <ProjectHealthCard
@@ -270,7 +316,24 @@ export function AllProjectsOverview({
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <AllProjectsList projects={metrics.filteredProjects} />
+            <div className="space-y-4">
+              {projectData.map((analytics, index) => (
+                <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                  <div>
+                    <p className="font-medium">{analytics.client.client_name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {analytics.metrics.taskCount} tasks • {analytics.metrics.hoursSpent}h spent
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">${analytics.metrics.totalRevenue.toLocaleString()}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {analytics.metrics.profitMargin.toFixed(1)}% margin
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       </div>

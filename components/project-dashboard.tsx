@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
@@ -12,78 +12,119 @@ import { TeamUtilizationChart } from "@/components/team-utilization-chart"
 import { ProfitabilityChart } from "@/components/profitability-chart"
 import { ProjectHealthCard } from "@/components/project-health-card"
 import { AllProjectsOverview } from "@/components/all-projects-overview"
+import { getProjectAnalytics, getAllProjectsAnalytics } from "@/lib/data-services"
+import { ProjectAnalytics, ProjectTypeFilter } from "@/lib/types"
 
 interface ProjectDashboardProps {
   selectedProject: string
 }
 
 export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
-  const [projectType, setProjectType] = useState<"one-time" | "retainer">("one-time")
-  const [allProjectsFilter, setAllProjectsFilter] = useState<"one-time" | "retainer" | "all">("all")
   const [timePeriod, setTimePeriod] = useState("all-time")
+  const [projectAnalytics, setProjectAnalytics] = useState<ProjectAnalytics | null>(null)
+  const [allProjectsData, setAllProjectsData] = useState<ProjectAnalytics[]>([])
+  const [loading, setLoading] = useState(true)
 
-  // Mock data - in real app, this would come from Supabase
-  const allProjectsData = {
-    "veza-dagster": {
-      name: "Dagster",
-      type: "one-time" as const,
-      sowHours: 320,
-      hoursSpent: 245,
-      sowPrice: 45000,
-      averageHourlyRate: 125,
-    },
-    "veza-webconnex": {
-      name: "Webconnex",
-      type: "retainer" as const,
-      monthlyHours: 50,
-      hoursSpentThisMonth: 40,
-      monthlyRetainer: 7500,
-      averageHourlyRate: 30,
-    },
-    "shadow-social-media": {
-      name: "Social Media Management",
-      type: "retainer" as const,
-      monthlyHours: 40,
-      hoursSpentThisMonth: 32,
-      monthlyRetainer: 5000,
-      averageHourlyRate: 100,
-    },
+  // 🔄 Fetch project data when selectedProject or timePeriod changes
+  useEffect(() => {
+    async function fetchProjectData() {
+      setLoading(true)
+      try {
+        console.log('🔍 Fetching data for project:', selectedProject, 'period:', timePeriod)
+
+        if (selectedProject === "all-projects") {
+          const allData = await getAllProjectsAnalytics('all')
+          setAllProjectsData(allData)
+          setProjectAnalytics(null)
+        } else if (selectedProject === "on-going") {
+          const ongoingData = await getAllProjectsAnalytics('on-going')
+          setAllProjectsData(ongoingData)
+          setProjectAnalytics(null)
+        } else if (selectedProject === "one-time") {
+          const oneTimeData = await getAllProjectsAnalytics('one-time')
+          setAllProjectsData(oneTimeData)
+          setProjectAnalytics(null)
+        } else {
+          // Individual client project
+          const analytics = await getProjectAnalytics(selectedProject)
+          setProjectAnalytics(analytics)
+          setAllProjectsData([])
+        }
+
+        console.log('✅ Data fetched successfully for:', selectedProject)
+      } catch (error) {
+        console.error('💥 Failed to fetch project data:', error)
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchProjectData()
+  }, [selectedProject, timePeriod])
+
+  // 📊 Show loading state
+  if (loading) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Loading...</h1>
+            <p className="text-muted-foreground">Fetching project analytics</p>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <Card key={i}>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-sm font-medium">Loading...</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="h-8 bg-muted rounded animate-pulse"></div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      </div>
+    )
   }
 
-  // If viewing all projects, show the aggregated view
-  if (selectedProject === "all-projects") {
+  // 📈 Show aggregated view for multiple projects
+  if (selectedProject === "all-projects" || selectedProject === "on-going" || selectedProject === "one-time") {
+    const filterType: ProjectTypeFilter = selectedProject === "all-projects" ? "all" : 
+                                         selectedProject === "on-going" ? "on-going" : "one-time"
+    
     return (
       <AllProjectsOverview
         projectData={allProjectsData}
-        filter={allProjectsFilter}
-        onFilterChange={setAllProjectsFilter}
+        filter={filterType}
         timePeriod={timePeriod}
         onTimePeriodChange={setTimePeriod}
       />
     )
   }
 
-  const currentProject =
-    allProjectsData[selectedProject as keyof typeof allProjectsData] || allProjectsData["veza-dagster"]
-  const isOneTime = currentProject.type === "one-time"
+  // 🎯 Show individual project view
+  if (!projectAnalytics) {
+    return (
+      <div className="p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Project Not Found</h1>
+            <p className="text-muted-foreground">No data available for {selectedProject}</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 
-  const deliveryCost = isOneTime
-    ? currentProject.hoursSpent * currentProject.averageHourlyRate
-    : (currentProject as any).hoursSpentThisMonth * currentProject.averageHourlyRate
-
-  const revenue = isOneTime ? currentProject.sowPrice : (currentProject as any).monthlyRetainer
-  const profit = revenue - deliveryCost
-  const profitMargin = (profit / revenue) * 100
-
-  const hoursProgress = isOneTime
-    ? (currentProject.hoursSpent / currentProject.sowHours) * 100
-    : ((currentProject as any).hoursSpentThisMonth / (currentProject as any).monthlyHours) * 100
+  const { client, metrics, teamMembers } = projectAnalytics
+  const isOneTime = client.project_type === "one-time"
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">{currentProject.name}</h1>
+          <h1 className="text-3xl font-bold">{client.client_name}</h1>
           <p className="text-muted-foreground">Project Analytics Dashboard</p>
         </div>
         <Select value={timePeriod} onValueChange={setTimePeriod}>
@@ -108,7 +149,7 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
             <CardTitle className="text-sm font-medium">Project Type</CardTitle>
           </CardHeader>
           <CardContent>
-            <ProjectTypeToggle value={currentProject.type} onChange={setProjectType} disabled={true} />
+            <ProjectTypeToggle value={client.project_type} onChange={() => {}} disabled={true} />
           </CardContent>
         </Card>
 
@@ -116,14 +157,14 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <Clock className="h-4 w-4" />
-              {isOneTime ? "Total SOW Hours" : "Monthly Hours"}
+              {isOneTime ? "Total Allocated Hours" : "Monthly Hours"}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {isOneTime ? currentProject.sowHours : (currentProject as any).monthlyHours}
-            </div>
-            <p className="text-xs text-muted-foreground">{isOneTime ? "Total allocated hours" : "Hours per month"}</p>
+            <div className="text-2xl font-bold">{metrics.totalHours}</div>
+            <p className="text-xs text-muted-foreground">
+              {isOneTime ? "Total allocated hours" : "Hours per month"}
+            </p>
           </CardContent>
         </Card>
 
@@ -137,18 +178,17 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
           <CardContent>
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <span className="text-2xl font-bold">
-                  {isOneTime ? currentProject.hoursSpent : (currentProject as any).hoursSpentThisMonth}
-                </span>
-                <Badge variant={hoursProgress > 90 ? "destructive" : hoursProgress > 75 ? "secondary" : "default"}>
-                  {hoursProgress.toFixed(1)}%
+                <span className="text-2xl font-bold">{metrics.hoursSpent}</span>
+                <Badge variant={
+                  metrics.utilizationPercentage > 90 ? "destructive" : 
+                  metrics.utilizationPercentage > 75 ? "secondary" : "default"
+                }>
+                  {metrics.utilizationPercentage.toFixed(1)}%
                 </Badge>
               </div>
-              <Progress value={hoursProgress} className="h-2" />
+              <Progress value={metrics.utilizationPercentage} className="h-2" />
               <p className="text-xs text-muted-foreground">
-                {isOneTime
-                  ? `${currentProject.sowHours - currentProject.hoursSpent} hours remaining`
-                  : `${(currentProject as any).monthlyHours - (currentProject as any).hoursSpentThisMonth} hours remaining this month`}
+                {metrics.hoursRemaining} hours remaining
               </p>
             </div>
           </CardContent>
@@ -161,11 +201,11 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
           <CardHeader className="pb-3">
             <CardTitle className="text-sm font-medium flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
-              {isOneTime ? "SOW Price" : "Monthly Retainer"}
+              {isOneTime ? "Total Revenue" : "Monthly Revenue"}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${revenue.toLocaleString()}</div>
+            <div className="text-2xl font-bold">${metrics.totalRevenue.toLocaleString()}</div>
             <p className="text-xs text-muted-foreground">
               {isOneTime ? "Total project value" : "Monthly recurring revenue"}
             </p>
@@ -180,8 +220,10 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">${deliveryCost.toLocaleString()}</div>
-            <p className="text-xs text-muted-foreground">Hours × ${currentProject.averageHourlyRate}/hr avg rate</p>
+            <div className="text-2xl font-bold">${metrics.deliveryCost.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              {metrics.hoursSpent}h × ${metrics.averageHourlyRate}/hr avg rate
+            </p>
           </CardContent>
         </Card>
 
@@ -195,9 +237,12 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
           <CardContent>
             <div className="space-y-1">
               <div className="text-2xl font-bold flex items-center gap-2">
-                {profitMargin.toFixed(1)}%
-                <Badge variant={profitMargin > 50 ? "default" : profitMargin > 25 ? "secondary" : "destructive"}>
-                  ${profit.toLocaleString()}
+                {metrics.profitMargin.toFixed(1)}%
+                <Badge variant={
+                  metrics.profitMargin > 50 ? "default" : 
+                  metrics.profitMargin > 25 ? "secondary" : "destructive"
+                }>
+                  ${metrics.profit.toLocaleString()}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground">Revenue - Delivery Cost</p>
@@ -206,7 +251,142 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
         </Card>
       </div>
 
-      {/* Project Duration and Additional Metrics */}
+      {/* Task Status Overview - All Time vs This Month */}
+      <div className="space-y-4">
+        <h3 className="text-lg font-semibold">Task Status Overview</h3>
+        
+        {/* All Time Tasks */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Total Tasks (All Time)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{metrics.taskCount}</div>
+              <p className="text-xs text-muted-foreground">All tasks ever</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Completed (All Time)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{metrics.completedTasks}</div>
+              <p className="text-xs text-muted-foreground">
+                {metrics.taskCount > 0 ? ((metrics.completedTasks / metrics.taskCount) * 100).toFixed(1) : 0}% of all tasks
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">In Progress (All Time)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{metrics.inProgressTasks}</div>
+              <p className="text-xs text-muted-foreground">
+                {metrics.taskCount > 0 ? ((metrics.inProgressTasks / metrics.taskCount) * 100).toFixed(1) : 0}% of all tasks
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">To Do (All Time)</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-600">{metrics.todoTasks}</div>
+              <p className="text-xs text-muted-foreground">
+                {metrics.taskCount > 0 ? ((metrics.todoTasks / metrics.taskCount) * 100).toFixed(1) : 0}% of all tasks
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* This Month Tasks */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Tasks This Month</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{metrics.taskCountThisMonth}</div>
+              <p className="text-xs text-muted-foreground">{metrics.hoursSpentThisMonth}h spent</p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">Completed This Month</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{metrics.completedTasksThisMonth}</div>
+              <p className="text-xs text-muted-foreground">
+                {metrics.taskCountThisMonth > 0 ? ((metrics.completedTasksThisMonth / metrics.taskCountThisMonth) * 100).toFixed(1) : 0}% this month
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">In Progress This Month</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-blue-600">{metrics.inProgressTasksThisMonth}</div>
+              <p className="text-xs text-muted-foreground">
+                {metrics.taskCountThisMonth > 0 ? ((metrics.inProgressTasksThisMonth / metrics.taskCountThisMonth) * 100).toFixed(1) : 0}% this month
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm font-medium">To Do This Month</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-gray-600">{metrics.todoTasksThisMonth}</div>
+              <p className="text-xs text-muted-foreground">
+                {metrics.taskCountThisMonth > 0 ? ((metrics.todoTasksThisMonth / metrics.taskCountThisMonth) * 100).toFixed(1) : 0}% this month
+              </p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Team Members */}
+      {teamMembers.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              Team Members
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {teamMembers.slice(0, 5).map((member, index) => (
+                <div key={index} className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{member.name}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {member.taskCount} tasks total • {member.taskCountThisMonth} this month
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-medium">{member.hoursSpent}h total</p>
+                    <p className="text-sm text-muted-foreground">
+                      {member.hoursSpentThisMonth}h this month • {member.utilizationPercentage.toFixed(1)}% util
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Additional Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <Card>
           <CardHeader>
@@ -220,7 +400,11 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
           </CardContent>
         </Card>
 
-        <ProjectHealthCard profitMargin={profitMargin} revenue={revenue} deliveryCost={deliveryCost} />
+        <ProjectHealthCard 
+          profitMargin={metrics.profitMargin} 
+          revenue={metrics.totalRevenue} 
+          deliveryCost={metrics.deliveryCost} 
+        />
 
         <Card>
           <CardHeader>
@@ -230,7 +414,11 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <TeamUtilizationChart />
+            <TeamUtilizationChart 
+              teamMembers={teamMembers}
+              totalAllocatedHours={metrics.totalHours}
+              totalSpentHours={metrics.hoursSpent}
+            />
           </CardContent>
         </Card>
       </div>

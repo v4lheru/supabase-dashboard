@@ -6,7 +6,7 @@ import { ProjectDashboard } from "@/components/project-dashboard"
 import { SidebarProvider } from "@/components/ui/sidebar"
 
 export default function Dashboard() {
-  const [selectedProject, setSelectedProject] = useState("veza-dagster")
+  const [selectedProject, setSelectedProject] = useState("Webconnex")
 
   return (
     <SidebarProvider defaultOpen={true}>

@@ -22,10 +22,6 @@ Connecting the Project Analytics Dashboard to Supabase database and preparing fo
 - Fields: client_name, project_type (on-going/one-time), total_hours_month, clickup mappings
 - Source of truth for client billing and project structure
 
-## Supabase Credentials
-- URL: https://naitzbqgkbufxmuoypaz.supabase.co
-- Access Token: sbp_af9f42fdb83b577735fcc4ac0a48ad1e28ce06f1
-- Service Role Key: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5haXR6YnFna2J1ZnhtdW95cGF6Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDgzNDAzMCwiZXhwIjoyMDYwNDEwMDMwfQ.QVgZ_xCQ2ww3j2n_qHkZ_Wu0YUSALpH0hCNvYmwqH78
 
 ## Next Steps
 1. Install Supabase client dependencies

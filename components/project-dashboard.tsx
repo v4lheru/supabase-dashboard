@@ -7,13 +7,14 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Clock, DollarSign, TrendingUp, Calendar, Users, Target } from "lucide-react"
 import { ProjectTypeToggle } from "@/components/project-type-toggle"
-import { ProjectDurationChart } from "@/components/project-duration-chart"
+import { OverdueTasksCompact } from "@/components/overdue-tasks-compact"
 import { TeamUtilizationChart } from "@/components/team-utilization-chart"
+import { FinancialBurnRateChart } from "@/components/financial-burn-rate-chart"
 import { ProfitabilityChart } from "@/components/profitability-chart"
 import { ProjectHealthCard } from "@/components/project-health-card"
 import { AllProjectsOverview } from "@/components/all-projects-overview"
 import { getProjectAnalytics, getAllProjectsAnalytics } from "@/lib/data-services"
-import { ProjectAnalytics, ProjectTypeFilter } from "@/lib/types"
+import { ProjectAnalytics, ProjectTypeFilter, ProjectStatusFilter } from "@/lib/types"
 
 interface ProjectDashboardProps {
   selectedProject: string
@@ -21,32 +22,33 @@ interface ProjectDashboardProps {
 
 export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
   const [timePeriod, setTimePeriod] = useState("all-time")
+  const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all")
   const [projectAnalytics, setProjectAnalytics] = useState<ProjectAnalytics | null>(null)
   const [allProjectsData, setAllProjectsData] = useState<ProjectAnalytics[]>([])
   const [loading, setLoading] = useState(true)
 
-  // 🔄 Fetch project data when selectedProject or timePeriod changes
+  // 🔄 Fetch project data when selectedProject, timePeriod, or statusFilter changes
   useEffect(() => {
     async function fetchProjectData() {
       setLoading(true)
       try {
-        console.log('🔍 Fetching data for project:', selectedProject, 'period:', timePeriod)
+        console.log('🔍 Fetching data for project:', selectedProject, 'period:', timePeriod, 'status:', statusFilter)
 
         if (selectedProject === "all-projects") {
-          const allData = await getAllProjectsAnalytics('all')
+          const allData = await getAllProjectsAnalytics('all', statusFilter, timePeriod)
           setAllProjectsData(allData)
           setProjectAnalytics(null)
         } else if (selectedProject === "on-going") {
-          const ongoingData = await getAllProjectsAnalytics('on-going')
+          const ongoingData = await getAllProjectsAnalytics('On-going', statusFilter, timePeriod)
           setAllProjectsData(ongoingData)
           setProjectAnalytics(null)
         } else if (selectedProject === "one-time") {
-          const oneTimeData = await getAllProjectsAnalytics('one-time')
+          const oneTimeData = await getAllProjectsAnalytics('One-Time', statusFilter, timePeriod)
           setAllProjectsData(oneTimeData)
           setProjectAnalytics(null)
         } else {
           // Individual client project
-          const analytics = await getProjectAnalytics(selectedProject)
+          const analytics = await getProjectAnalytics(selectedProject, timePeriod)
           setProjectAnalytics(analytics)
           setAllProjectsData([])
         }
@@ -60,7 +62,7 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
     }
 
     fetchProjectData()
-  }, [selectedProject, timePeriod])
+  }, [selectedProject, timePeriod, statusFilter])
 
   // 📊 Show loading state
   if (loading) {
@@ -91,14 +93,16 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
   // 📈 Show aggregated view for multiple projects
   if (selectedProject === "all-projects" || selectedProject === "on-going" || selectedProject === "one-time") {
     const filterType: ProjectTypeFilter = selectedProject === "all-projects" ? "all" : 
-                                         selectedProject === "on-going" ? "on-going" : "one-time"
+                                         selectedProject === "on-going" ? "On-going" : "One-Time"
     
     return (
       <AllProjectsOverview
         projectData={allProjectsData}
         filter={filterType}
+        statusFilter={statusFilter}
         timePeriod={timePeriod}
         onTimePeriodChange={setTimePeriod}
+        onStatusFilterChange={setStatusFilter}
       />
     )
   }
@@ -118,7 +122,7 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
   }
 
   const { client, metrics, teamMembers } = projectAnalytics
-  const isOneTime = client.project_type === "one-time"
+  const isOneTime = client.project_type === "One-Time"
 
   return (
     <div className="p-6 space-y-6">
@@ -134,10 +138,11 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
           <SelectContent>
             <SelectItem value="all-time">All Time</SelectItem>
             <SelectItem value="this-month">This Month</SelectItem>
-            <SelectItem value="previous-month">Previous Month</SelectItem>
-            <SelectItem value="january-2024">January 2024</SelectItem>
-            <SelectItem value="december-2023">December 2023</SelectItem>
-            <SelectItem value="november-2023">November 2023</SelectItem>
+            <SelectItem value="last-30-days">Last 30 Days</SelectItem>
+            <SelectItem value="this-quarter">This Quarter</SelectItem>
+            <SelectItem value="last-quarter">Last Quarter</SelectItem>
+            <SelectItem value="this-year">This Year</SelectItem>
+            <SelectItem value="last-year">Last Year</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -149,7 +154,23 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
             <CardTitle className="text-sm font-medium">Project Type</CardTitle>
           </CardHeader>
           <CardContent>
-            <ProjectTypeToggle value={client.project_type} onChange={() => {}} disabled={true} />
+            <div className="text-2xl font-bold capitalize">
+              {client.project_type === 'On-going' ? 'Ongoing Project' : 'One-Time Project'}
+            </div>
+            <div className="mt-2">
+              <Badge 
+                variant={
+                  client.status === 'Active' ? 'default' :
+                  client.status === 'Not Active' ? 'destructive' :
+                  client.status === 'Paused' ? 'secondary' :
+                  client.status === 'Completed' ? 'outline' :
+                  'secondary'
+                }
+                className="text-sm px-3 py-1"
+              >
+                {client.status || 'Status not set'}
+              </Badge>
+            </div>
           </CardContent>
         </Card>
 
@@ -251,152 +272,24 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
         </Card>
       </div>
 
-      {/* Task Status Overview - All Time vs This Month */}
-      <div className="space-y-4">
-        <h3 className="text-lg font-semibold">Task Status Overview</h3>
-        
-        {/* All Time Tasks */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Total Tasks (All Time)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics.taskCount}</div>
-              <p className="text-xs text-muted-foreground">All tasks ever</p>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Completed (All Time)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{metrics.completedTasks}</div>
-              <p className="text-xs text-muted-foreground">
-                {metrics.taskCount > 0 ? ((metrics.completedTasks / metrics.taskCount) * 100).toFixed(1) : 0}% of all tasks
-              </p>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">In Progress (All Time)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{metrics.inProgressTasks}</div>
-              <p className="text-xs text-muted-foreground">
-                {metrics.taskCount > 0 ? ((metrics.inProgressTasks / metrics.taskCount) * 100).toFixed(1) : 0}% of all tasks
-              </p>
-            </CardContent>
-          </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">To Do (All Time)</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-600">{metrics.todoTasks}</div>
-              <p className="text-xs text-muted-foreground">
-                {metrics.taskCount > 0 ? ((metrics.todoTasks / metrics.taskCount) * 100).toFixed(1) : 0}% of all tasks
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* This Month Tasks */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Tasks This Month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold">{metrics.taskCountThisMonth}</div>
-              <p className="text-xs text-muted-foreground">{metrics.hoursSpentThisMonth}h spent</p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">Completed This Month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">{metrics.completedTasksThisMonth}</div>
-              <p className="text-xs text-muted-foreground">
-                {metrics.taskCountThisMonth > 0 ? ((metrics.completedTasksThisMonth / metrics.taskCountThisMonth) * 100).toFixed(1) : 0}% this month
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">In Progress This Month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-blue-600">{metrics.inProgressTasksThisMonth}</div>
-              <p className="text-xs text-muted-foreground">
-                {metrics.taskCountThisMonth > 0 ? ((metrics.inProgressTasksThisMonth / metrics.taskCountThisMonth) * 100).toFixed(1) : 0}% this month
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm font-medium">To Do This Month</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-gray-600">{metrics.todoTasksThisMonth}</div>
-              <p className="text-xs text-muted-foreground">
-                {metrics.taskCountThisMonth > 0 ? ((metrics.todoTasksThisMonth / metrics.taskCountThisMonth) * 100).toFixed(1) : 0}% this month
-              </p>
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Team Members */}
-      {teamMembers.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Team Members
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-4">
-              {teamMembers.slice(0, 5).map((member, index) => (
-                <div key={index} className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{member.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {member.taskCount} tasks total • {member.taskCountThisMonth} this month
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium">{member.hoursSpent}h total</p>
-                    <p className="text-sm text-muted-foreground">
-                      {member.hoursSpentThisMonth}h this month • {member.utilizationPercentage.toFixed(1)}% util
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Additional Charts */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Calendar className="h-5 w-5" />
-              Project Duration
+              Overdue Tasks & Timeline
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <ProjectDurationChart />
+            <OverdueTasksCompact 
+              tasks={projectAnalytics.tasks}
+              projectType={client.project_type}
+            />
           </CardContent>
         </Card>
 
@@ -405,12 +298,16 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
           revenue={metrics.totalRevenue} 
           deliveryCost={metrics.deliveryCost} 
         />
+      </div>
 
+      {/* Team Utilization - Split View */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Detailed Team Utilization */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Users className="h-5 w-5" />
-              Team Utilization
+              Team Utilization Details
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -418,23 +315,30 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
               teamMembers={teamMembers}
               totalAllocatedHours={metrics.totalHours}
               totalSpentHours={metrics.hoursSpent}
+              projectType={client.project_type}
+            />
+          </CardContent>
+        </Card>
+
+        {/* Financial Burn Rate & Forecasting */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="h-5 w-5" />
+              Financial Burn Rate & Forecasting
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <FinancialBurnRateChart 
+              teamMembers={teamMembers}
+              metrics={metrics}
+              projectType={client.project_type}
             />
           </CardContent>
         </Card>
       </div>
 
-      {/* Profitability Trends */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5" />
-            Profitability Trends
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ProfitabilityChart />
-        </CardContent>
-      </Card>
+
     </div>
   )
 }

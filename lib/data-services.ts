@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { ClickUpTask, ClientMapping, ProjectMetrics, TeamMember, ProjectAnalytics, TimePeriod, ProjectTypeFilter } from './types'
+import { ClickUpTask, ClientMapping, ProjectMetrics, TeamMember, ProjectAnalytics, TimePeriod, ProjectTypeFilter, ProjectStatusFilter } from './types'
 
 /**
  * 🔄 Fetches all client mappings from Supabase
@@ -27,58 +27,73 @@ export async function getClientMappings(): Promise<ClientMapping[]> {
 
 /**
  * 📊 Fetches ClickUp tasks for a specific client with optional time filtering
- * Uses folder_name to match with client_name from client_mappings
+ * Uses clickup_folder_name from client_mappings to match with folder_name in ClickUp
  */
 export async function getClientTasks(clientName: string, timePeriod?: TimePeriod): Promise<ClickUpTask[]> {
   try {
+    // First get the client mapping to find the correct ClickUp folder name
+    const { data: clientMapping, error: mappingError } = await supabase
+      .from('client_mappings')
+      .select('clickup_folder_name')
+      .eq('client_name', clientName)
+      .single()
+
+    if (mappingError || !clientMapping?.clickup_folder_name) {
+      console.warn('⚠️ No ClickUp folder mapping found for client:', clientName)
+      return []
+    }
+
+    const clickupFolderName = clientMapping.clickup_folder_name
+    console.log('🔍 Using ClickUp folder name:', clickupFolderName, 'for client:', clientName)
+
     let query = supabase
-      .from('clickup_supabase')
+      .from('clickup_supabase_main')
       .select('*')
-      .eq('folder_name', clientName)
+      .eq('folder_name', clickupFolderName)
 
     // Add time filtering based on period
     if (timePeriod && timePeriod !== 'all-time') {
       const now = new Date()
       let startDate: Date
+      let endDate: Date | null = null
 
       switch (timePeriod) {
         case 'this-month':
           startDate = new Date(now.getFullYear(), now.getMonth(), 1)
           break
-        case 'previous-month':
-          startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-          const endDate = new Date(now.getFullYear(), now.getMonth(), 0)
-          query = query
-            .gte('date_updated', startDate.getTime())
-            .lte('date_updated', endDate.getTime())
+        case 'last-30-days':
+          startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))
           break
-        case 'january-2024':
-          startDate = new Date(2024, 0, 1)
-          const janEnd = new Date(2024, 0, 31)
-          query = query
-            .gte('date_updated', startDate.getTime())
-            .lte('date_updated', janEnd.getTime())
+        case 'this-quarter':
+          const currentQuarter = Math.floor(now.getMonth() / 3)
+          startDate = new Date(now.getFullYear(), currentQuarter * 3, 1)
           break
-        case 'december-2023':
-          startDate = new Date(2023, 11, 1)
-          const decEnd = new Date(2023, 11, 31)
-          query = query
-            .gte('date_updated', startDate.getTime())
-            .lte('date_updated', decEnd.getTime())
+        case 'last-quarter':
+          const lastQuarter = Math.floor(now.getMonth() / 3) - 1
+          if (lastQuarter < 0) {
+            // Previous year Q4
+            startDate = new Date(now.getFullYear() - 1, 9, 1) // October 1st
+            endDate = new Date(now.getFullYear() - 1, 11, 31) // December 31st
+          } else {
+            startDate = new Date(now.getFullYear(), lastQuarter * 3, 1)
+            endDate = new Date(now.getFullYear(), (lastQuarter + 1) * 3, 0) // Last day of quarter
+          }
           break
-        case 'november-2023':
-          startDate = new Date(2023, 10, 1)
-          const novEnd = new Date(2023, 10, 30)
-          query = query
-            .gte('date_updated', startDate.getTime())
-            .lte('date_updated', novEnd.getTime())
+        case 'this-year':
+          startDate = new Date(now.getFullYear(), 0, 1)
+          break
+        case 'last-year':
+          startDate = new Date(now.getFullYear() - 1, 0, 1)
+          endDate = new Date(now.getFullYear() - 1, 11, 31)
           break
         default:
           startDate = new Date(now.getFullYear(), now.getMonth(), 1)
       }
 
-      if (timePeriod === 'this-month') {
-        query = query.gte('date_updated', startDate.getTime())
+      // Apply date filtering
+      query = query.gte('date_updated', startDate.getTime())
+      if (endDate) {
+        query = query.lte('date_updated', endDate.getTime())
       }
     }
 
@@ -99,13 +114,13 @@ export async function getClientTasks(clientName: string, timePeriod?: TimePeriod
 
 /**
  * 📈 Calculates project metrics based on client mapping and tasks
- * Handles both on-going and one-time project types with time-based breakdowns
+ * Handles both on-going and one-time project types with proper calculations
  */
 export function calculateProjectMetrics(client: ClientMapping, tasks: ClickUpTask[], allTasks?: ClickUpTask[]): ProjectMetrics {
   // Use allTasks for total calculations if provided, otherwise use tasks
   const totalTasks = allTasks || tasks
   
-  // Convert time_spent from milliseconds to hours
+  // Convert time_spent from milliseconds to hours (ClickUp stores time in milliseconds)
   const totalTimeSpentMs = totalTasks.reduce((sum, task) => {
     const timeSpent = parseInt(task.time_spent || '0')
     return sum + timeSpent
@@ -129,45 +144,44 @@ export function calculateProjectMetrics(client: ClientMapping, tasks: ClickUpTas
   
   const hoursSpentThisMonth = Math.round(thisMonthTimeMs / (1000 * 60 * 60) * 100) / 100
 
-  // Calculate total allocated hours based on project type
-  let totalHours = 0
-  if (client.project_type === 'on-going' && client.total_hours_month) {
-    totalHours = parseInt(client.total_hours_month)
-  } else if (client.project_type === 'one-time') {
-    // For one-time projects, we'll estimate based on time estimates or use a default
-    const totalEstimateMs = totalTasks.reduce((sum, task) => {
-      const estimate = parseInt(task.time_estimate || '0')
-      return sum + estimate
-    }, 0)
-    totalHours = totalEstimateMs > 0 ? Math.round(totalEstimateMs / (1000 * 60 * 60)) : hoursSpent * 1.5 // Fallback estimation
-  }
-
+  // Calculate allocated hours based on project type
+  const totalHours = client.available_hours || 0
   const hoursRemaining = Math.max(0, totalHours - hoursSpent)
   const utilizationPercentage = totalHours > 0 ? (hoursSpent / totalHours) * 100 : 0
 
-  // Calculate financial metrics (using estimated rates)
-  const averageHourlyRate = 125 // Default rate, could be made configurable per client
-  const deliveryCost = hoursSpent * averageHourlyRate
+  // Calculate financial metrics using actual client data
+  const averageHourlyRate = Math.round((client.average_delivery_hourly || 0) * 100) / 100
+  const deliveryCost = Math.round(hoursSpent * averageHourlyRate * 100) / 100
+  const totalRevenue = Math.round((client.revenue || 0) * 100) / 100
+
+  const profit = Math.round((totalRevenue - deliveryCost) * 100) / 100
+  const profitMargin = totalRevenue > 0 ? Math.round((profit / totalRevenue) * 100 * 100) / 100 : 0
+
+  // Task status counts (all time) - using actual ClickUp status values
+  const completedTasks = totalTasks.filter(task => 
+    task.status === 'complete' || task.status === 'approved'
+  ).length
   
-  let totalRevenue = 0
-  if (client.project_type === 'on-going' && client.total_hours_month) {
-    totalRevenue = parseInt(client.total_hours_month) * averageHourlyRate
-  } else {
-    totalRevenue = totalHours * averageHourlyRate
-  }
-
-  const profit = totalRevenue - deliveryCost
-  const profitMargin = totalRevenue > 0 ? (profit / totalRevenue) * 100 : 0
-
-  // Task status counts (all time)
-  const completedTasks = totalTasks.filter(task => task.status === 'complete').length
-  const inProgressTasks = totalTasks.filter(task => task.status === 'in progress').length
-  const todoTasks = totalTasks.filter(task => task.status === 'to do').length
+  const inProgressTasks = totalTasks.filter(task => 
+    task.status === 'in progress' || task.status === 'review' || task.status === 'client review'
+  ).length
+  
+  const todoTasks = totalTasks.filter(task => 
+    task.status === 'to do' || task.status === 'backlog' || task.status === 'planning'
+  ).length
 
   // Task status counts (this month)
-  const completedTasksThisMonth = thisMonthTasks.filter(task => task.status === 'complete').length
-  const inProgressTasksThisMonth = thisMonthTasks.filter(task => task.status === 'in progress').length
-  const todoTasksThisMonth = thisMonthTasks.filter(task => task.status === 'to do').length
+  const completedTasksThisMonth = thisMonthTasks.filter(task => 
+    task.status === 'complete' || task.status === 'approved'
+  ).length
+  
+  const inProgressTasksThisMonth = thisMonthTasks.filter(task => 
+    task.status === 'in progress' || task.status === 'review' || task.status === 'client review'
+  ).length
+  
+  const todoTasksThisMonth = thisMonthTasks.filter(task => 
+    task.status === 'to do' || task.status === 'backlog' || task.status === 'planning'
+  ).length
 
   return {
     clientName: client.client_name,
@@ -198,7 +212,7 @@ export function calculateProjectMetrics(client: ClientMapping, tasks: ClickUpTas
  * 👥 Extracts team member data from tasks with time-based breakdowns
  * Parses assignees string and calculates individual contributions
  */
-export function extractTeamMembers(tasks: ClickUpTask[]): TeamMember[] {
+export function extractTeamMembers(tasks: ClickUpTask[], projectType?: 'On-going' | 'One-Time'): TeamMember[] {
   const memberMap = new Map<string, { 
     hoursSpent: number; 
     taskCount: number; 
@@ -216,8 +230,16 @@ export function extractTeamMembers(tasks: ClickUpTask[]): TeamMember[] {
     const taskDate = parseInt(task.date_updated)
     const isThisMonth = taskDate >= thisMonthStart
     
-    // Parse assignees (comma-separated string)
+    // Parse assignees (comma-separated string) - handle null/undefined assignees
+    if (!task.assignees) {
+      return // Skip tasks without assignees
+    }
+    
     const assignees = task.assignees.split(',').map(name => name.trim()).filter(name => name)
+    
+    if (assignees.length === 0) {
+      return // Skip if no valid assignees
+    }
     
     assignees.forEach(assignee => {
       const current = memberMap.get(assignee) || { 
@@ -238,10 +260,20 @@ export function extractTeamMembers(tasks: ClickUpTask[]): TeamMember[] {
     })
   })
 
+  // Calculate total project hours for percentage calculations
+  const totalProjectHours = Array.from(memberMap.values()).reduce((sum, data) => sum + data.hoursSpent, 0)
+
   return Array.from(memberMap.entries()).map(([name, data]) => {
-    // Calculate utilization percentage (this month hours vs expected monthly capacity)
-    const expectedMonthlyHours = 160 // Assume 40 hours/week * 4 weeks
-    const utilizationPercentage = (data.hoursSpentThisMonth / expectedMonthlyHours) * 100
+    let utilizationPercentage: number
+    
+    if (projectType === 'One-Time') {
+      // For one-time projects, show percentage of contribution to total project
+      utilizationPercentage = totalProjectHours > 0 ? (data.hoursSpent / totalProjectHours) * 100 : 0
+    } else {
+      // For ongoing projects, show monthly capacity utilization
+      const expectedMonthlyHours = 160 // Assume 40 hours/week * 4 weeks
+      utilizationPercentage = (data.hoursSpentThisMonth / expectedMonthlyHours) * 100
+    }
 
     return {
       name,
@@ -258,13 +290,13 @@ export function extractTeamMembers(tasks: ClickUpTask[]): TeamMember[] {
  * 🎯 Gets complete project analytics for a specific client
  * Combines client mapping, tasks, and calculated metrics
  */
-export async function getProjectAnalytics(clientName: string): Promise<ProjectAnalytics | null> {
+export async function getProjectAnalytics(clientName: string, timePeriod?: string): Promise<ProjectAnalytics | null> {
   try {
     console.log('🔍 Fetching analytics for client:', clientName)
     
     const [clients, tasks] = await Promise.all([
       getClientMappings(),
-      getClientTasks(clientName)
+      getClientTasks(clientName, timePeriod as TimePeriod)
     ])
 
     const client = clients.find(c => c.client_name === clientName)
@@ -274,7 +306,7 @@ export async function getProjectAnalytics(clientName: string): Promise<ProjectAn
     }
 
     const metrics = calculateProjectMetrics(client, tasks)
-    const teamMembers = extractTeamMembers(tasks)
+    const teamMembers = extractTeamMembers(tasks, client.project_type)
 
     console.log('✅ Analytics calculated for', clientName, '- Tasks:', tasks.length, 'Hours:', metrics.hoursSpent)
 
@@ -291,20 +323,34 @@ export async function getProjectAnalytics(clientName: string): Promise<ProjectAn
 }
 
 /**
- * 📊 Gets aggregated analytics for all projects or filtered by type
- * Used for the "All Projects" overview
+ * 📊 Gets aggregated analytics for all projects with filtering options
+ * Used for the "All Projects" overview with comprehensive filtering
  */
-export async function getAllProjectsAnalytics(filter: ProjectTypeFilter = 'all'): Promise<ProjectAnalytics[]> {
+export async function getAllProjectsAnalytics(
+  typeFilter: ProjectTypeFilter = 'all',
+  statusFilter: ProjectStatusFilter = 'all',
+  timePeriod?: string
+): Promise<ProjectAnalytics[]> {
   try {
-    console.log('🔍 Fetching all projects analytics with filter:', filter)
+    console.log('🔍 Fetching all projects analytics with filters:', { typeFilter, statusFilter })
     
     const clients = await getClientMappings()
-    const filteredClients = filter === 'all' 
-      ? clients 
-      : clients.filter(client => client.project_type === filter)
+    
+    // Apply filters
+    let filteredClients = clients
+    
+    // Filter by project type
+    if (typeFilter !== 'all') {
+      filteredClients = filteredClients.filter(client => client.project_type === typeFilter)
+    }
+    
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filteredClients = filteredClients.filter(client => client.status === statusFilter)
+    }
 
     const analyticsPromises = filteredClients.map(client => 
-      getProjectAnalytics(client.client_name)
+      getProjectAnalytics(client.client_name, timePeriod)
     )
 
     const results = await Promise.all(analyticsPromises)

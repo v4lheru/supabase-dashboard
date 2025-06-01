@@ -40,14 +40,19 @@ export interface ClientMapping {
   updated_at: string
   qa_list_name: string | null
   qa_list_id: string | null
-  project_type: 'on-going' | 'one-time'
+  project_type: 'On-going' | 'One-Time'
   total_hours_month: string | null
+  // New fields for comprehensive project tracking
+  available_hours: number | null // Total hours for one-time projects or monthly hours for retainers
+  revenue: number | null // Total revenue for one-time or monthly revenue for retainers
+  average_delivery_hourly: number | null // Average hourly rate of delivery team
+  status: 'Active' | 'Not Active' | 'Paused' | 'Completed' | null // Project status
 }
 
 // Computed interfaces for dashboard analytics
 export interface ProjectMetrics {
   clientName: string
-  projectType: 'on-going' | 'one-time'
+  projectType: 'On-going' | 'One-Time'
   totalHours: number
   hoursSpent: number
   hoursRemaining: number
@@ -93,7 +98,10 @@ export interface ProjectAnalytics {
 }
 
 // Time period filters
-export type TimePeriod = 'all-time' | 'this-month' | 'previous-month' | 'january-2024' | 'december-2023' | 'november-2023'
+export type TimePeriod = 'all-time' | 'this-month' | 'last-30-days' | 'this-quarter' | 'last-quarter' | 'this-year' | 'last-year'
 
 // Project type filters
-export type ProjectTypeFilter = 'all' | 'on-going' | 'one-time'
+export type ProjectTypeFilter = 'all' | 'On-going' | 'One-Time'
+
+// Project status filters
+export type ProjectStatusFilter = 'all' | 'Active' | 'Not Active' | 'Paused' | 'Completed'

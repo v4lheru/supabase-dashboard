@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { ChevronDown, ChevronRight, Folder, FolderOpen, BarChart3 } from "lucide-react"
+import { Checkbox } from "@/components/ui/checkbox"
 import {
   Sidebar,
   SidebarContent,
@@ -14,8 +15,9 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { getClientMappings } from "@/lib/data-services"
-import { ClientMapping } from "@/lib/types"
+import { getClientMappings, getProjectAnalytics } from "@/lib/data-services"
+import { ClientMapping, ProjectAnalytics } from "@/lib/types"
+import { calculateProjectHealth, getNoDataHealth } from "@/lib/project-health"
 
 interface ProjectSidebarProps {
   selectedProject: string
@@ -25,16 +27,67 @@ interface ProjectSidebarProps {
 export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSidebarProps) {
   const [clientsExpanded, setClientsExpanded] = useState(true)
   const [clients, setClients] = useState<ClientMapping[]>([])
+  const [projectHealth, setProjectHealth] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
+  const [hideBlanks, setHideBlanks] = useState(false)
 
-  // 🔄 Fetch client mappings on component mount
+  // Calculate project health status using shared logic
+  const getProjectHealthStatus = async (clientName: string): Promise<string> => {
+    try {
+      const analytics = await getProjectAnalytics(clientName)
+      if (!analytics || !analytics.tasks || analytics.tasks.length === 0) {
+        console.log(`⚪ ${clientName}: No tasks data`)
+        const noDataHealth = getNoDataHealth()
+        return noDataHealth.emoji
+      }
+      
+      const { metrics } = analytics
+      
+      // Check if we have valid financial data - only revenue is required
+      if (!metrics.totalRevenue || metrics.totalRevenue === 0) {
+        console.log(`⚪ ${clientName}: No revenue data (${metrics.totalRevenue})`)
+        const noDataHealth = getNoDataHealth()
+        return noDataHealth.emoji
+      }
+      
+      // Use the same health calculation as the dashboard
+      const health = calculateProjectHealth(metrics.profitMargin)
+      
+      console.log(`${health.emoji} ${clientName}:`, {
+        profitMargin: metrics.profitMargin.toFixed(1) + '%',
+        healthStatus: health.label,
+        revenue: metrics.totalRevenue,
+        deliveryCost: metrics.deliveryCost,
+        profit: metrics.profit
+      })
+      
+      return health.emoji
+    } catch (error) {
+      console.error(`⚪ Error calculating health for ${clientName}:`, error)
+      const noDataHealth = getNoDataHealth()
+      return noDataHealth.emoji
+    }
+  }
+
+  // 🔄 Fetch client mappings and health status on component mount
   useEffect(() => {
-    async function fetchClients() {
+    async function fetchClientsAndHealth() {
       try {
         console.log('🔍 Fetching clients for sidebar...')
         const clientData = await getClientMappings()
         setClients(clientData)
-        console.log('✅ Loaded', clientData.length, 'clients for sidebar')
+        
+        // Fetch health status for each client
+        const healthPromises = clientData.map(async (client) => {
+          const health = await getProjectHealthStatus(client.client_name)
+          return { [client.client_name]: health }
+        })
+        
+        const healthResults = await Promise.all(healthPromises)
+        const healthMap = healthResults.reduce((acc, curr) => ({ ...acc, ...curr }), {})
+        setProjectHealth(healthMap)
+        
+        console.log('✅ Loaded', clientData.length, 'clients with health status')
       } catch (error) {
         console.error('💥 Failed to fetch clients for sidebar:', error)
       } finally {
@@ -42,7 +95,7 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
       }
     }
 
-    fetchClients()
+    fetchClientsAndHealth()
   }, [])
 
   return (
@@ -104,6 +157,23 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
               </SidebarMenuButton>
             </CollapsibleTrigger>
             <CollapsibleContent>
+              {/* Hide Blanks Filter */}
+              <div className="px-2 py-2 border-b">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="hide-blanks"
+                    checked={hideBlanks}
+                    onCheckedChange={(checked) => setHideBlanks(checked as boolean)}
+                  />
+                  <label
+                    htmlFor="hide-blanks"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Hide blanks
+                  </label>
+                </div>
+              </div>
+              
               <SidebarMenuSub>
                 {loading ? (
                   <SidebarMenuSubItem>
@@ -118,21 +188,34 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 ) : (
-                  clients.map((client) => (
-                    <SidebarMenuSubItem key={client.id}>
-                      <SidebarMenuSubButton
-                        isActive={selectedProject === client.client_name}
-                        onClick={() => onProjectSelect(client.client_name)}
-                      >
-                        <span>{client.client_name}</span>
-                        {client.project_type && (
-                          <span className="ml-auto text-xs text-muted-foreground">
-                            {client.project_type === 'on-going' ? '🔄' : '📋'}
-                          </span>
-                        )}
-                      </SidebarMenuSubButton>
-                    </SidebarMenuSubItem>
-                  ))
+                  clients
+                    .filter((client) => {
+                      if (!hideBlanks) return true
+                      const health = projectHealth[client.client_name]
+                      // Hide projects with no data (⚪) or loading (⏳)
+                      return health && health !== '⚪' && health !== '⏳'
+                    })
+                    .map((client) => (
+                      <SidebarMenuSubItem key={client.id}>
+                        <SidebarMenuSubButton
+                          isActive={selectedProject === client.client_name}
+                          onClick={() => onProjectSelect(client.client_name)}
+                          className="flex items-center justify-between w-full"
+                        >
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm">
+                              {projectHealth[client.client_name] || '⏳'}
+                            </span>
+                            <span>{client.client_name}</span>
+                          </div>
+                          {client.project_type && (
+                            <span className="text-xs text-muted-foreground">
+                              {client.project_type === 'On-going' ? '🔄' : '📋'}
+                            </span>
+                          )}
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    ))
                 )}
               </SidebarMenuSub>
             </CollapsibleContent>

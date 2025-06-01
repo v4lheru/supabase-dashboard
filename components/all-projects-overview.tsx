@@ -8,20 +8,24 @@ import { Clock, DollarSign, TrendingUp, Users, Target, BarChart3 } from "lucide-
 import { AllProjectsTypeToggle } from "@/components/all-projects-type-toggle"
 import { ProjectHealthCard } from "@/components/project-health-card"
 import { AllProjectsList } from "@/components/all-projects-list"
-import { ProjectAnalytics, ProjectTypeFilter } from "@/lib/types"
+import { ProjectAnalytics, ProjectTypeFilter, ProjectStatusFilter } from "@/lib/types"
 
 interface AllProjectsOverviewProps {
   projectData: ProjectAnalytics[]
   filter: ProjectTypeFilter
+  statusFilter: ProjectStatusFilter
   timePeriod: string
   onTimePeriodChange: (period: string) => void
+  onStatusFilterChange: (status: ProjectStatusFilter) => void
 }
 
 export function AllProjectsOverview({
   projectData,
   filter,
+  statusFilter,
   timePeriod,
   onTimePeriodChange,
+  onStatusFilterChange,
 }: AllProjectsOverviewProps) {
   // 📊 Calculate aggregated metrics from ProjectAnalytics array
   const calculateAggregatedMetrics = () => {
@@ -71,9 +75,9 @@ export function AllProjectsOverview({
 
   const getFilterTitle = () => {
     switch (filter) {
-      case "one-time":
+      case "One-Time":
         return "One-Time Projects Overview"
-      case "on-going":
+      case "On-going":
         return "On-going Projects Overview"
       default:
         return "All Projects Overview"
@@ -82,9 +86,9 @@ export function AllProjectsOverview({
 
   const getHoursLabel = () => {
     switch (filter) {
-      case "one-time":
+      case "One-Time":
         return "Total Project Hours"
-      case "on-going":
+      case "On-going":
         return "Monthly Hours"
       default:
         return "Total Hours"
@@ -93,9 +97,9 @@ export function AllProjectsOverview({
 
   const getRevenueLabel = () => {
     switch (filter) {
-      case "one-time":
+      case "One-Time":
         return "Total Project Revenue"
-      case "on-going":
+      case "On-going":
         return "Monthly Recurring Revenue"
       default:
         return "Total Revenue"
@@ -111,19 +115,34 @@ export function AllProjectsOverview({
             {metrics.projectCount} project{metrics.projectCount !== 1 ? "s" : ""} • Aggregated Analytics
           </p>
         </div>
-        <Select value={timePeriod} onValueChange={onTimePeriodChange}>
-          <SelectTrigger className="w-48">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all-time">All Time</SelectItem>
-            <SelectItem value="this-month">This Month</SelectItem>
-            <SelectItem value="previous-month">Previous Month</SelectItem>
-            <SelectItem value="january-2024">January 2024</SelectItem>
-            <SelectItem value="december-2023">December 2023</SelectItem>
-            <SelectItem value="november-2023">November 2023</SelectItem>
-          </SelectContent>
-        </Select>
+        <div className="flex gap-3">
+          <Select value={statusFilter} onValueChange={onStatusFilterChange}>
+            <SelectTrigger className="w-40">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="Active">Active</SelectItem>
+              <SelectItem value="Not Active">Not Active</SelectItem>
+              <SelectItem value="Paused">Paused</SelectItem>
+              <SelectItem value="Completed">Completed</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={timePeriod} onValueChange={onTimePeriodChange}>
+            <SelectTrigger className="w-48">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all-time">All Time</SelectItem>
+              <SelectItem value="this-month">This Month</SelectItem>
+              <SelectItem value="last-30-days">Last 30 Days</SelectItem>
+              <SelectItem value="this-quarter">This Quarter</SelectItem>
+              <SelectItem value="last-quarter">Last Quarter</SelectItem>
+              <SelectItem value="this-year">This Year</SelectItem>
+              <SelectItem value="last-year">Last Year</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* Core Metrics */}
@@ -140,7 +159,7 @@ export function AllProjectsOverview({
             <p className="text-xs text-muted-foreground">
               {filter === "all"
                 ? "Combined allocated hours"
-                : filter === "one-time"
+                : filter === "One-Time"
                   ? "Total project hours"
                   : "Monthly hours across projects"}
             </p>
@@ -206,7 +225,7 @@ export function AllProjectsOverview({
             <p className="text-xs text-muted-foreground">
               {filter === "all"
                 ? "Combined revenue from all projects"
-                : filter === "one-time"
+                : filter === "One-Time"
                   ? "Total project value"
                   : "Monthly recurring revenue"}
             </p>
@@ -317,22 +336,42 @@ export function AllProjectsOverview({
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {projectData.map((analytics, index) => (
-                <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
-                  <div>
-                    <p className="font-medium">{analytics.client.client_name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {analytics.metrics.taskCount} tasks • {analytics.metrics.hoursSpent}h spent
-                    </p>
+              {projectData.map((analytics, index) => {
+                const getStatusBadgeVariant = (status: string | null) => {
+                  switch (status) {
+                    case 'Active': return 'default'
+                    case 'Paused': return 'secondary'
+                    case 'Completed': return 'outline'
+                    case 'Not Active': return 'destructive'
+                    default: return 'secondary'
+                  }
+                }
+                
+                return (
+                  <div key={index} className="flex items-center justify-between p-4 border rounded-lg">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <p className="font-medium">{analytics.client.client_name}</p>
+                        <Badge variant={getStatusBadgeVariant(analytics.client.status)}>
+                          {analytics.client.status || 'Unknown'}
+                        </Badge>
+                        <Badge variant="outline">
+                          {analytics.client.project_type === 'On-going' ? 'Ongoing' : 'One-time'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        {analytics.metrics.taskCount} tasks • {analytics.metrics.hoursSpent}h spent • {analytics.client.available_hours || 0}h allocated
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium">${analytics.metrics.totalRevenue.toLocaleString()}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {analytics.metrics.profitMargin.toFixed(1)}% margin • ${analytics.metrics.averageHourlyRate}/h
+                      </p>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    <p className="font-medium">${analytics.metrics.totalRevenue.toLocaleString()}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {analytics.metrics.profitMargin.toFixed(1)}% margin
-                    </p>
-                  </div>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </CardContent>
         </Card>

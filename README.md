@@ -94,12 +94,45 @@ A comprehensive project analytics dashboard for Veza Digital, built with Next.js
 
 ## Deployment
 
-The application is configured for Railway deployment with:
-- Automatic builds from Git
-- Environment variable management
-- No health checks (as specified)
+### Railway Deployment (Recommended)
 
-Deploy using the included `railway.json` configuration.
+This project is fully configured for Railway deployment:
+
+#### 1. Prerequisites
+- Railway account (https://railway.app)
+- GitHub repository access
+- Supabase project with required tables
+
+#### 2. Deploy to Railway
+1. **Connect Repository**: Link your GitHub repo to Railway
+2. **Set Environment Variables** in Railway dashboard:
+   ```
+   NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+   SUPABASE_SERVICE_ROLE_KEY=your-service-role-key-here
+   ```
+3. **Deploy**: Railway will automatically build and deploy using `railway.json`
+
+#### 3. Railway Configuration
+The included `railway.json` provides:
+- **Build Command**: `npm run build`
+- **Start Command**: `npm start`
+- **Builder**: NIXPACKS (automatic detection)
+- **Restart Policy**: ON_FAILURE with 10 retries
+
+#### 4. Required Environment Variables
+Copy `.env.example` to `.env.local` for local development, or set these in Railway:
+- `NEXT_PUBLIC_SUPABASE_URL` - Your Supabase project URL
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` - Public API key (safe for frontend)
+- `SUPABASE_SERVICE_ROLE_KEY` - Admin key (optional, server-side only)
+
+#### 5. Database Setup
+Ensure your Supabase project has:
+- `client_mappings` table with project configurations
+- `clickup_supabase_main` table with ClickUp task data
+- Proper RLS policies for data access
+
+✅ **Ready for Production**: All dependencies, build scripts, and configurations are included in the repository.
 
 ## Contributing
 

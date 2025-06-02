@@ -60,6 +60,7 @@ export async function getClientTasks(clientName: string, timePeriod?: TimePeriod
       switch (timePeriod) {
         case 'this-month':
           startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0) // Last day of current month
           break
         case 'last-30-days':
           startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))

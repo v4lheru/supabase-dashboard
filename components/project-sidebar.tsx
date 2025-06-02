@@ -31,10 +31,13 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
   const [loading, setLoading] = useState(true)
   const [hideBlanks, setHideBlanks] = useState(false)
 
-  // Calculate project health status using shared logic
-  const getProjectHealthStatus = async (clientName: string): Promise<string> => {
+  // Calculate project health status using appropriate time period based on project type
+  const getProjectHealthStatus = async (clientName: string, projectType: string): Promise<string> => {
     try {
-      const analytics = await getProjectAnalytics(clientName)
+      // Use appropriate time period based on project type
+      const timePeriod = projectType === 'On-going' ? 'this-month' : 'all-time'
+      const analytics = await getProjectAnalytics(clientName, timePeriod)
+      
       if (!analytics || !analytics.tasks || analytics.tasks.length === 0) {
         console.log(`⚪ ${clientName}: No tasks data`)
         const noDataHealth = getNoDataHealth()
@@ -53,7 +56,7 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
       // Use the same health calculation as the dashboard
       const health = calculateProjectHealth(metrics.profitMargin)
       
-      console.log(`${health.emoji} ${clientName}:`, {
+      console.log(`${health.emoji} ${clientName} (${timePeriod}):`, {
         profitMargin: metrics.profitMargin.toFixed(1) + '%',
         healthStatus: health.label,
         revenue: metrics.totalRevenue,
@@ -77,9 +80,9 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
         const clientData = await getClientMappings()
         setClients(clientData)
         
-        // Fetch health status for each client
+        // Fetch health status for each client with appropriate time period
         const healthPromises = clientData.map(async (client) => {
-          const health = await getProjectHealthStatus(client.client_name)
+          const health = await getProjectHealthStatus(client.client_name, client.project_type || 'On-going')
           return { [client.client_name]: health }
         })
         
@@ -111,23 +114,13 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
-              isActive={selectedProject === "all-projects"}
-              onClick={() => onProjectSelect("all-projects")}
-              className="w-full justify-start"
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span>All Projects</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-          <SidebarMenuItem>
-            <SidebarMenuButton
               isActive={selectedProject === "on-going"}
               onClick={() => onProjectSelect("on-going")}
               className="w-full justify-start"
             >
               <BarChart3 className="h-4 w-4" />
               <span>On-going Projects</span>
+              <span className="ml-auto text-xs text-muted-foreground">This Month</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
@@ -139,6 +132,7 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
             >
               <BarChart3 className="h-4 w-4" />
               <span>One-time Projects</span>
+              <span className="ml-auto text-xs text-muted-foreground">All Time</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>

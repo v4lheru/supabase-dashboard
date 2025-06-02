@@ -6,7 +6,7 @@ import { ProjectDashboard } from "@/components/project-dashboard"
 import { SidebarProvider } from "@/components/ui/sidebar"
 
 export default function Dashboard() {
-  const [selectedProject, setSelectedProject] = useState("Webconnex")
+  const [selectedProject, setSelectedProject] = useState("on-going")
 
   return (
     <SidebarProvider defaultOpen={true}>

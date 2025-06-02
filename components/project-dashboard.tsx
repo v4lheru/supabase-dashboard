@@ -13,19 +13,51 @@ import { FinancialBurnRateChart } from "@/components/financial-burn-rate-chart"
 import { ProfitabilityChart } from "@/components/profitability-chart"
 import { ProjectHealthCard } from "@/components/project-health-card"
 import { AllProjectsOverview } from "@/components/all-projects-overview"
-import { getProjectAnalytics, getAllProjectsAnalytics } from "@/lib/data-services"
-import { ProjectAnalytics, ProjectTypeFilter, ProjectStatusFilter } from "@/lib/types"
+import { ProjectsHistoricalView } from "@/components/projects-historical-view"
+import { ProjectTypeDashboard } from "@/components/project-type-dashboard"
+import { getProjectAnalytics, getAllProjectsAnalytics, getClientMappings } from "@/lib/data-services"
+import { ProjectAnalytics, ProjectTypeFilter, ProjectStatusFilter, ClientMapping } from "@/lib/types"
 
 interface ProjectDashboardProps {
   selectedProject: string
 }
 
 export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
-  const [timePeriod, setTimePeriod] = useState("all-time")
+  // Set default time period based on project type
+  const getDefaultTimePeriod = (projectType: string, clientData?: ClientMapping) => {
+    // For individual projects, check the client's project type
+    if (clientData?.project_type === "On-going") return "this-month"
+    if (clientData?.project_type === "One-Time") return "all-time"
+    
+    // For project type views
+    if (projectType === "on-going") return "this-month"
+    if (projectType === "one-time") return "all-time"
+    
+    return "all-time"
+  }
+
+  const [timePeriod, setTimePeriod] = useState("all-time") // Will be updated when data loads
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all")
   const [projectAnalytics, setProjectAnalytics] = useState<ProjectAnalytics | null>(null)
   const [allProjectsData, setAllProjectsData] = useState<ProjectAnalytics[]>([])
+  const [allClients, setAllClients] = useState<ClientMapping[]>([])
   const [loading, setLoading] = useState(true)
+
+  // 🔄 Update time period when project changes
+  useEffect(() => {
+    if (selectedProject === "on-going" || selectedProject === "one-time") {
+      const defaultPeriod = getDefaultTimePeriod(selectedProject)
+      setTimePeriod(defaultPeriod)
+    }
+  }, [selectedProject])
+
+  // 🔄 Update time period for individual projects when analytics load
+  useEffect(() => {
+    if (projectAnalytics?.client && selectedProject !== "on-going" && selectedProject !== "one-time") {
+      const defaultPeriod = getDefaultTimePeriod(selectedProject, projectAnalytics.client)
+      setTimePeriod(defaultPeriod)
+    }
+  }, [projectAnalytics, selectedProject])
 
   // 🔄 Fetch project data when selectedProject, timePeriod, or statusFilter changes
   useEffect(() => {
@@ -34,11 +66,11 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
       try {
         console.log('🔍 Fetching data for project:', selectedProject, 'period:', timePeriod, 'status:', statusFilter)
 
-        if (selectedProject === "all-projects") {
-          const allData = await getAllProjectsAnalytics('all', statusFilter, timePeriod)
-          setAllProjectsData(allData)
-          setProjectAnalytics(null)
-        } else if (selectedProject === "on-going") {
+        // Always fetch client mappings for historical view
+        const clients = await getClientMappings()
+        setAllClients(clients)
+
+        if (selectedProject === "on-going") {
           const ongoingData = await getAllProjectsAnalytics('On-going', statusFilter, timePeriod)
           setAllProjectsData(ongoingData)
           setProjectAnalytics(null)
@@ -90,15 +122,15 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
     )
   }
 
-  // 📈 Show aggregated view for multiple projects
-  if (selectedProject === "all-projects" || selectedProject === "on-going" || selectedProject === "one-time") {
-    const filterType: ProjectTypeFilter = selectedProject === "all-projects" ? "all" : 
-                                         selectedProject === "on-going" ? "On-going" : "One-Time"
+  // 📈 Show tabbed dashboard for project types
+  if (selectedProject === "on-going" || selectedProject === "one-time") {
+    const projectType = selectedProject === "on-going" ? "On-going" : "One-Time"
     
     return (
-      <AllProjectsOverview
-        projectData={allProjectsData}
-        filter={filterType}
+      <ProjectTypeDashboard
+        projectType={projectType}
+        allProjectsData={allProjectsData}
+        allClients={allClients}
         statusFilter={statusFilter}
         timePeriod={timePeriod}
         onTimePeriodChange={setTimePeriod}

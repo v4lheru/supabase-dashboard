@@ -414,3 +414,56 @@ export async function updateClientMapping(id: number, updates: Partial<ClientMap
     return null
   }
 }
+
+/**
+ * 📅 Fetches ClickUp tasks for a specific month
+ * Used for historical analysis
+ */
+export async function getClientTasksForMonth(clientName: string, year: number, month: number): Promise<ClickUpTask[]> {
+  try {
+    // First get the client mapping to find the correct ClickUp folder name
+    const { data: clientMapping, error: mappingError } = await supabase
+      .from('client_mappings')
+      .select('clickup_folder_name')
+      .eq('client_name', clientName)
+      .single()
+
+    if (mappingError || !clientMapping?.clickup_folder_name) {
+      console.warn('⚠️ No ClickUp folder mapping found for client:', clientName)
+      return []
+    }
+
+    const clickupFolderName = clientMapping.clickup_folder_name
+    
+    // Calculate month boundaries
+    const startDate = new Date(year, month, 1)
+    const endDate = new Date(year, month + 1, 0) // Last day of month
+    const startTimestamp = startDate.getTime()
+    const endTimestamp = endDate.getTime()
+
+    console.log(`🔍 Fetching tasks for ${clientName} in ${year}-${month + 1}:`, {
+      folder: clickupFolderName,
+      start: startDate.toISOString(),
+      end: endDate.toISOString()
+    })
+
+    const { data, error } = await supabase
+      .from('clickup_supabase_main')
+      .select('*')
+      .eq('folder_name', clickupFolderName)
+      .gte('date_updated', startTimestamp)
+      .lte('date_updated', endTimestamp)
+      .order('date_updated', { ascending: false })
+
+    if (error) {
+      console.error('❌ Error fetching monthly tasks for client:', clientName, error)
+      throw error
+    }
+
+    console.log('✅ Successfully fetched monthly tasks for', clientName, ':', data?.length || 0, 'tasks')
+    return data || []
+  } catch (error) {
+    console.error('💥 Failed to fetch monthly tasks for client:', clientName, error)
+    return []
+  }
+}

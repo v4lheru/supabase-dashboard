@@ -42,22 +42,28 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
   const [allProjectsData, setAllProjectsData] = useState<ProjectAnalytics[]>([])
   const [allClients, setAllClients] = useState<ClientMapping[]>([])
   const [loading, setLoading] = useState(true)
+  const [hasSetInitialPeriod, setHasSetInitialPeriod] = useState(false)
 
-  // 🔄 Update time period when project changes
+  // 🔄 Set initial time period only once when project changes (don't override user selections)
   useEffect(() => {
     if (selectedProject === "on-going" || selectedProject === "one-time") {
       const defaultPeriod = getDefaultTimePeriod(selectedProject)
       setTimePeriod(defaultPeriod)
+      setHasSetInitialPeriod(true)
+    } else {
+      // Reset flag for individual projects
+      setHasSetInitialPeriod(false)
     }
   }, [selectedProject])
 
-  // 🔄 Update time period for individual projects when analytics load
+  // 🔄 Set initial time period for individual projects only once when analytics load
   useEffect(() => {
-    if (projectAnalytics?.client && selectedProject !== "on-going" && selectedProject !== "one-time") {
+    if (projectAnalytics?.client && selectedProject !== "on-going" && selectedProject !== "one-time" && !hasSetInitialPeriod) {
       const defaultPeriod = getDefaultTimePeriod(selectedProject, projectAnalytics.client)
       setTimePeriod(defaultPeriod)
+      setHasSetInitialPeriod(true)
     }
-  }, [projectAnalytics, selectedProject])
+  }, [projectAnalytics, selectedProject, hasSetInitialPeriod])
 
   // 🔄 Fetch project data when selectedProject, timePeriod, or statusFilter changes
   useEffect(() => {

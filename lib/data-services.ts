@@ -27,29 +27,31 @@ export async function getClientMappings(): Promise<ClientMapping[]> {
 
 /**
  * 📊 Fetches ClickUp tasks for a specific client with optional time filtering
- * Uses clickup_folder_name from client_mappings to match with folder_name in ClickUp
+ * Uses clickup_folder_name AND clickup_list_name from client_mappings to get only billable tasks
  */
 export async function getClientTasks(clientName: string, timePeriod?: TimePeriod): Promise<ClickUpTask[]> {
   try {
-    // First get the client mapping to find the correct ClickUp folder name
+    // First get the client mapping to find the correct ClickUp folder and list names
     const { data: clientMapping, error: mappingError } = await supabase
       .from('client_mappings')
-      .select('clickup_folder_name')
+      .select('clickup_folder_name, clickup_list_name')
       .eq('client_name', clientName)
       .single()
 
-    if (mappingError || !clientMapping?.clickup_folder_name) {
-      console.warn('⚠️ No ClickUp folder mapping found for client:', clientName)
+    if (mappingError || !clientMapping?.clickup_folder_name || !clientMapping?.clickup_list_name) {
+      console.warn('⚠️ No ClickUp folder/list mapping found for client:', clientName)
       return []
     }
 
     const clickupFolderName = clientMapping.clickup_folder_name
-    console.log('🔍 Using ClickUp folder name:', clickupFolderName, 'for client:', clientName)
+    const clickupListName = clientMapping.clickup_list_name
+    console.log('🔍 Using ClickUp folder:', clickupFolderName, 'and list:', clickupListName, 'for client:', clientName)
 
     let query = supabase
       .from('clickup_supabase_main')
       .select('*')
       .eq('folder_name', clickupFolderName)
+      .eq('list_name', clickupListName)
 
     // Add time filtering based on period
     if (timePeriod && timePeriod !== 'all-time') {
@@ -105,7 +107,7 @@ export async function getClientTasks(clientName: string, timePeriod?: TimePeriod
       throw error
     }
 
-    console.log('✅ Successfully fetched tasks for', clientName, ':', data?.length || 0, 'tasks', timePeriod ? `(${timePeriod})` : '')
+    console.log('✅ Successfully fetched BILLABLE tasks for', clientName, ':', data?.length || 0, 'tasks', timePeriod ? `(${timePeriod})` : '')
     return data || []
   } catch (error) {
     console.error('💥 Failed to fetch tasks for client:', clientName, error)
@@ -418,23 +420,24 @@ export async function updateClientMapping(id: number, updates: Partial<ClientMap
 
 /**
  * 📅 Fetches ClickUp tasks for a specific month
- * Used for historical analysis
+ * Used for historical analysis - ALSO FILTERS BY BILLABLE LIST
  */
 export async function getClientTasksForMonth(clientName: string, year: number, month: number): Promise<ClickUpTask[]> {
   try {
-    // First get the client mapping to find the correct ClickUp folder name
+    // First get the client mapping to find the correct ClickUp folder and list names
     const { data: clientMapping, error: mappingError } = await supabase
       .from('client_mappings')
-      .select('clickup_folder_name')
+      .select('clickup_folder_name, clickup_list_name')
       .eq('client_name', clientName)
       .single()
 
-    if (mappingError || !clientMapping?.clickup_folder_name) {
-      console.warn('⚠️ No ClickUp folder mapping found for client:', clientName)
+    if (mappingError || !clientMapping?.clickup_folder_name || !clientMapping?.clickup_list_name) {
+      console.warn('⚠️ No ClickUp folder/list mapping found for client:', clientName)
       return []
     }
 
     const clickupFolderName = clientMapping.clickup_folder_name
+    const clickupListName = clientMapping.clickup_list_name
     
     // Calculate month boundaries
     const startDate = new Date(year, month, 1)
@@ -442,8 +445,9 @@ export async function getClientTasksForMonth(clientName: string, year: number, m
     const startTimestamp = startDate.getTime()
     const endTimestamp = endDate.getTime()
 
-    console.log(`🔍 Fetching tasks for ${clientName} in ${year}-${month + 1}:`, {
+    console.log(`🔍 Fetching BILLABLE tasks for ${clientName} in ${year}-${month + 1}:`, {
       folder: clickupFolderName,
+      list: clickupListName,
       start: startDate.toISOString(),
       end: endDate.toISOString()
     })
@@ -452,6 +456,7 @@ export async function getClientTasksForMonth(clientName: string, year: number, m
       .from('clickup_supabase_main')
       .select('*')
       .eq('folder_name', clickupFolderName)
+      .eq('list_name', clickupListName)
       .gte('date_updated', startTimestamp)
       .lte('date_updated', endTimestamp)
       .order('date_updated', { ascending: false })
@@ -461,7 +466,7 @@ export async function getClientTasksForMonth(clientName: string, year: number, m
       throw error
     }
 
-    console.log('✅ Successfully fetched monthly tasks for', clientName, ':', data?.length || 0, 'tasks')
+    console.log('✅ Successfully fetched monthly BILLABLE tasks for', clientName, ':', data?.length || 0, 'tasks')
     return data || []
   } catch (error) {
     console.error('💥 Failed to fetch monthly tasks for client:', clientName, error)

@@ -9,6 +9,7 @@ import { ProjectAnalytics, ProjectTypeFilter, ProjectStatusFilter, ClientMapping
 
 interface ProjectTypeDashboardProps {
   projectType: 'On-going' | 'One-Time'
+  companyName?: string
   allProjectsData: ProjectAnalytics[]
   allClients: ClientMapping[]
   statusFilter: ProjectStatusFilter
@@ -19,6 +20,7 @@ interface ProjectTypeDashboardProps {
 
 export function ProjectTypeDashboard({
   projectType,
+  companyName = "",
   allProjectsData,
   allClients,
   statusFilter,
@@ -33,9 +35,10 @@ export function ProjectTypeDashboard({
   return (
     <div className="p-6">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold">{projectType} Projects</h1>
+        <h1 className="text-3xl font-bold">{projectType} Projects{companyName}</h1>
         <p className="text-muted-foreground">
           {projectType === 'On-going' ? 'Monthly retainer-based projects' : 'Fixed scope projects'}
+          {companyName && ` - ${companyName.trim()} company`}
         </p>
       </div>
 

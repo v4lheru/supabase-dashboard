@@ -368,6 +368,49 @@ export async function getAllProjectsAnalytics(
 }
 
 /**
+ * 🏢 Gets aggregated analytics for projects filtered by company (Veza/Shadow) and project type
+ * Used for the new separated navigation (Veza/Shadow + Ongoing/One-time)
+ */
+export async function getCompanyProjectsAnalytics(
+  company: 'veza' | 'shadow',
+  projectType: 'On-going' | 'One-Time',
+  statusFilter: ProjectStatusFilter = 'all',
+  timePeriod?: string
+): Promise<ProjectAnalytics[]> {
+  try {
+    console.log('🔍 Fetching company projects analytics:', { company, projectType, statusFilter })
+    
+    const clients = await getClientMappings()
+    
+    // Filter by company based on clickup_project_name
+    const companyFilter = company === 'veza' ? 'Projects' : 'Shadow Digital Projects'
+    
+    let filteredClients = clients.filter(client => 
+      client.clickup_project_name === companyFilter && 
+      client.project_type === projectType
+    )
+    
+    // Filter by status
+    if (statusFilter !== 'all') {
+      filteredClients = filteredClients.filter(client => client.status === statusFilter)
+    }
+
+    const analyticsPromises = filteredClients.map(client => 
+      getProjectAnalytics(client.client_name, timePeriod)
+    )
+
+    const results = await Promise.all(analyticsPromises)
+    const validResults = results.filter((result): result is ProjectAnalytics => result !== null)
+
+    console.log('✅ Company analytics for', company, projectType, ':', validResults.length, 'projects')
+    return validResults
+  } catch (error) {
+    console.error('💥 Failed to get company projects analytics:', error)
+    return []
+  }
+}
+
+/**
  * ➕ Creates a new client mapping
  * Used for dynamic client onboarding
  */

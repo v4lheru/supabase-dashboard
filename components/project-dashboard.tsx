@@ -15,7 +15,7 @@ import { ProjectHealthCard } from "@/components/project-health-card"
 import { AllProjectsOverview } from "@/components/all-projects-overview"
 import { ProjectsHistoricalView } from "@/components/projects-historical-view"
 import { ProjectTypeDashboard } from "@/components/project-type-dashboard"
-import { getProjectAnalytics, getAllProjectsAnalytics, getClientMappings } from "@/lib/data-services"
+import { getProjectAnalytics, getAllProjectsAnalytics, getClientMappings, getCompanyProjectsAnalytics } from "@/lib/data-services"
 import { ProjectAnalytics, ProjectTypeFilter, ProjectStatusFilter, ClientMapping } from "@/lib/types"
 
 interface ProjectDashboardProps {
@@ -29,9 +29,9 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
     if (clientData?.project_type === "On-going") return "this-month"
     if (clientData?.project_type === "One-Time") return "all-time"
     
-    // For project type views
-    if (projectType === "on-going") return "this-month"
-    if (projectType === "one-time") return "all-time"
+    // For project type views (including new Veza/Shadow options)
+    if (projectType === "on-going" || projectType === "veza-ongoing" || projectType === "shadow-ongoing") return "this-month"
+    if (projectType === "one-time" || projectType === "veza-onetime" || projectType === "shadow-onetime") return "all-time"
     
     return "all-time"
   }
@@ -46,7 +46,8 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
 
   // 🔄 Set initial time period only once when project changes (don't override user selections)
   useEffect(() => {
-    if (selectedProject === "on-going" || selectedProject === "one-time") {
+    const isProjectTypeView = ["on-going", "one-time", "veza-ongoing", "veza-onetime", "shadow-ongoing", "shadow-onetime"].includes(selectedProject)
+    if (isProjectTypeView) {
       const defaultPeriod = getDefaultTimePeriod(selectedProject)
       setTimePeriod(defaultPeriod)
       setHasSetInitialPeriod(true)
@@ -58,7 +59,8 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
 
   // 🔄 Set initial time period for individual projects only once when analytics load
   useEffect(() => {
-    if (projectAnalytics?.client && selectedProject !== "on-going" && selectedProject !== "one-time" && !hasSetInitialPeriod) {
+    const isProjectTypeView = ["on-going", "one-time", "veza-ongoing", "veza-onetime", "shadow-ongoing", "shadow-onetime"].includes(selectedProject)
+    if (projectAnalytics?.client && !isProjectTypeView && !hasSetInitialPeriod) {
       const defaultPeriod = getDefaultTimePeriod(selectedProject, projectAnalytics.client)
       setTimePeriod(defaultPeriod)
       setHasSetInitialPeriod(true)
@@ -76,7 +78,24 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
         const clients = await getClientMappings()
         setAllClients(clients)
 
-        if (selectedProject === "on-going") {
+        // Handle new company-specific project types
+        if (selectedProject === "veza-ongoing") {
+          const vezaOngoingData = await getCompanyProjectsAnalytics('veza', 'On-going', statusFilter, timePeriod)
+          setAllProjectsData(vezaOngoingData)
+          setProjectAnalytics(null)
+        } else if (selectedProject === "veza-onetime") {
+          const vezaOneTimeData = await getCompanyProjectsAnalytics('veza', 'One-Time', statusFilter, timePeriod)
+          setAllProjectsData(vezaOneTimeData)
+          setProjectAnalytics(null)
+        } else if (selectedProject === "shadow-ongoing") {
+          const shadowOngoingData = await getCompanyProjectsAnalytics('shadow', 'On-going', statusFilter, timePeriod)
+          setAllProjectsData(shadowOngoingData)
+          setProjectAnalytics(null)
+        } else if (selectedProject === "shadow-onetime") {
+          const shadowOneTimeData = await getCompanyProjectsAnalytics('shadow', 'One-Time', statusFilter, timePeriod)
+          setAllProjectsData(shadowOneTimeData)
+          setProjectAnalytics(null)
+        } else if (selectedProject === "on-going") {
           const ongoingData = await getAllProjectsAnalytics('On-going', statusFilter, timePeriod)
           setAllProjectsData(ongoingData)
           setProjectAnalytics(null)
@@ -128,13 +147,34 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
     )
   }
 
-  // 📈 Show tabbed dashboard for project types
-  if (selectedProject === "on-going" || selectedProject === "one-time") {
-    const projectType = selectedProject === "on-going" ? "On-going" : "One-Time"
+  // 📈 Show tabbed dashboard for project types (including company-specific views)
+  const isProjectTypeView = ["on-going", "one-time", "veza-ongoing", "veza-onetime", "shadow-ongoing", "shadow-onetime"].includes(selectedProject)
+  
+  if (isProjectTypeView) {
+    // Determine project type and company for display
+    let projectType: "On-going" | "One-Time"
+    let companyName = ""
+    
+    if (selectedProject === "veza-ongoing") {
+      projectType = "On-going"
+      companyName = " Veza"
+    } else if (selectedProject === "veza-onetime") {
+      projectType = "One-Time"
+      companyName = " Veza"
+    } else if (selectedProject === "shadow-ongoing") {
+      projectType = "On-going"
+      companyName = " Shadow"
+    } else if (selectedProject === "shadow-onetime") {
+      projectType = "One-Time"
+      companyName = " Shadow"
+    } else {
+      projectType = selectedProject === "on-going" ? "On-going" : "One-Time"
+    }
     
     return (
       <ProjectTypeDashboard
         projectType={projectType}
+        companyName={companyName}
         allProjectsData={allProjectsData}
         allClients={allClients}
         statusFilter={statusFilter}

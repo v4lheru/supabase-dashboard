@@ -112,26 +112,52 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
 
       <SidebarContent className="p-2">
         <SidebarMenu>
+          {/* Veza Projects */}
           <SidebarMenuItem>
             <SidebarMenuButton
-              isActive={selectedProject === "on-going"}
-              onClick={() => onProjectSelect("on-going")}
+              isActive={selectedProject === "veza-ongoing"}
+              onClick={() => onProjectSelect("veza-ongoing")}
               className="w-full justify-start"
             >
               <BarChart3 className="h-4 w-4" />
-              <span>On-going Projects</span>
+              <span>On-going Projects Veza</span>
               <span className="ml-auto text-xs text-muted-foreground">This Month</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
           <SidebarMenuItem>
             <SidebarMenuButton
-              isActive={selectedProject === "one-time"}
-              onClick={() => onProjectSelect("one-time")}
+              isActive={selectedProject === "veza-onetime"}
+              onClick={() => onProjectSelect("veza-onetime")}
               className="w-full justify-start"
             >
               <BarChart3 className="h-4 w-4" />
-              <span>One-time Projects</span>
+              <span>One-time Projects Veza</span>
+              <span className="ml-auto text-xs text-muted-foreground">All Time</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          {/* Shadow Projects */}
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={selectedProject === "shadow-ongoing"}
+              onClick={() => onProjectSelect("shadow-ongoing")}
+              className="w-full justify-start"
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span>On-going Projects Shadow</span>
+              <span className="ml-auto text-xs text-muted-foreground">This Month</span>
+            </SidebarMenuButton>
+          </SidebarMenuItem>
+
+          <SidebarMenuItem>
+            <SidebarMenuButton
+              isActive={selectedProject === "shadow-onetime"}
+              onClick={() => onProjectSelect("shadow-onetime")}
+              className="w-full justify-start"
+            >
+              <BarChart3 className="h-4 w-4" />
+              <span>One-time Projects Shadow</span>
               <span className="ml-auto text-xs text-muted-foreground">All Time</span>
             </SidebarMenuButton>
           </SidebarMenuItem>

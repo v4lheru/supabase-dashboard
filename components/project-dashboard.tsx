@@ -50,46 +50,75 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
     async function fetchProjectData() {
       setLoading(true)
       
-      // Set correct time period for this project type
-      const correctTimePeriod = getDefaultTimePeriod(selectedProject)
-      setTimePeriod(correctTimePeriod)
-      
       try {
-        console.log('🔍 Fetching data for project:', selectedProject, 'period:', correctTimePeriod, 'status:', statusFilter)
-
         // Always fetch client mappings for historical view
         const clients = await getClientMappings()
         setAllClients(clients)
 
-        // Handle new company-specific project types
+        // Handle project type views first
         if (selectedProject === "veza-ongoing") {
+          const correctTimePeriod = "this-month"
+          setTimePeriod(correctTimePeriod)
+          console.log('🔍 Fetching data for project:', selectedProject, 'period:', correctTimePeriod, 'status:', statusFilter)
           const vezaOngoingData = await getCompanyProjectsAnalytics('veza', 'On-going', statusFilter, correctTimePeriod)
           setAllProjectsData(vezaOngoingData)
           setProjectAnalytics(null)
         } else if (selectedProject === "veza-onetime") {
+          const correctTimePeriod = "all-time"
+          setTimePeriod(correctTimePeriod)
+          console.log('🔍 Fetching data for project:', selectedProject, 'period:', correctTimePeriod, 'status:', statusFilter)
           const vezaOneTimeData = await getCompanyProjectsAnalytics('veza', 'One-Time', statusFilter, correctTimePeriod)
           setAllProjectsData(vezaOneTimeData)
           setProjectAnalytics(null)
         } else if (selectedProject === "shadow-ongoing") {
+          const correctTimePeriod = "this-month"
+          setTimePeriod(correctTimePeriod)
+          console.log('🔍 Fetching data for project:', selectedProject, 'period:', correctTimePeriod, 'status:', statusFilter)
           const shadowOngoingData = await getCompanyProjectsAnalytics('shadow', 'On-going', statusFilter, correctTimePeriod)
           setAllProjectsData(shadowOngoingData)
           setProjectAnalytics(null)
         } else if (selectedProject === "shadow-onetime") {
+          const correctTimePeriod = "all-time"
+          setTimePeriod(correctTimePeriod)
+          console.log('🔍 Fetching data for project:', selectedProject, 'period:', correctTimePeriod, 'status:', statusFilter)
           const shadowOneTimeData = await getCompanyProjectsAnalytics('shadow', 'One-Time', statusFilter, correctTimePeriod)
           setAllProjectsData(shadowOneTimeData)
           setProjectAnalytics(null)
         } else if (selectedProject === "on-going") {
+          const correctTimePeriod = "this-month"
+          setTimePeriod(correctTimePeriod)
+          console.log('🔍 Fetching data for project:', selectedProject, 'period:', correctTimePeriod, 'status:', statusFilter)
           const ongoingData = await getAllProjectsAnalytics('On-going', statusFilter, correctTimePeriod)
           setAllProjectsData(ongoingData)
           setProjectAnalytics(null)
         } else if (selectedProject === "one-time") {
+          const correctTimePeriod = "all-time"
+          setTimePeriod(correctTimePeriod)
+          console.log('🔍 Fetching data for project:', selectedProject, 'period:', correctTimePeriod, 'status:', statusFilter)
           const oneTimeData = await getAllProjectsAnalytics('One-Time', statusFilter, correctTimePeriod)
           setAllProjectsData(oneTimeData)
           setProjectAnalytics(null)
         } else {
-          // Individual client project
-          const analytics = await getProjectAnalytics(selectedProject, correctTimePeriod)
-          setProjectAnalytics(analytics)
+          // Individual client project - fetch first to get client data
+          const analytics = await getProjectAnalytics(selectedProject, "all-time") // Fetch with default first
+          
+          if (analytics) {
+            // Now determine correct time period based on actual client data
+            const correctTimePeriod = (analytics.client.project_type === "On-going" || analytics.client.project_type === "On-Going") 
+              ? "this-month" 
+              : "all-time"
+            
+            setTimePeriod(correctTimePeriod)
+            console.log('🔍 Fetching data for project:', selectedProject, 'period:', correctTimePeriod, 'status:', statusFilter)
+            
+            // Refetch with correct time period if needed
+            if (correctTimePeriod !== "all-time") {
+              const correctAnalytics = await getProjectAnalytics(selectedProject, correctTimePeriod)
+              setProjectAnalytics(correctAnalytics)
+            } else {
+              setProjectAnalytics(analytics)
+            }
+          }
           setAllProjectsData([])
         }
 

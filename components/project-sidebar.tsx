@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronDown, ChevronRight, Folder, FolderOpen, BarChart3 } from "lucide-react"
+import { ChevronDown, ChevronRight, Folder, FolderOpen, BarChart3, Building2 } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Sidebar,
@@ -25,11 +25,13 @@ interface ProjectSidebarProps {
 }
 
 export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSidebarProps) {
-  const [clientsExpanded, setClientsExpanded] = useState(true)
+  const [vezaExpanded, setVezaExpanded] = useState(true)
+  const [shadowExpanded, setShadowExpanded] = useState(true)
+  const [vezaHideBlanks, setVezaHideBlanks] = useState(false)
+  const [shadowHideBlanks, setShadowHideBlanks] = useState(false)
   const [clients, setClients] = useState<ClientMapping[]>([])
   const [projectHealth, setProjectHealth] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
-  const [hideBlanks, setHideBlanks] = useState(false)
 
   // Calculate project health status using appropriate time period based on project type
   const getProjectHealthStatus = async (clientName: string, projectType: string): Promise<string> => {
@@ -101,6 +103,19 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
     fetchClientsAndHealth()
   }, [])
 
+  // Filter clients by company
+  const vezaClients = clients.filter(client => client.clickup_project_name === 'Projects')
+  const shadowClients = clients.filter(client => client.clickup_project_name === 'Shadow Digital Projects')
+
+  // Filter function for hide blanks
+  const filterBlanks = (clientList: ClientMapping[], hideBlanks: boolean) => {
+    if (!hideBlanks) return clientList
+    return clientList.filter(client => {
+      const health = projectHealth[client.client_name]
+      return health && health !== '⚪' && health !== '⏳'
+    })
+  }
+
   return (
     <Sidebar className="border-r">
       <SidebarHeader className="border-b p-4">
@@ -112,64 +127,40 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
 
       <SidebarContent className="p-2">
         <SidebarMenu>
-          {/* Veza Projects */}
+          {/* All Projects Overview */}
           <SidebarMenuItem>
             <SidebarMenuButton
-              isActive={selectedProject === "veza-ongoing"}
-              onClick={() => onProjectSelect("veza-ongoing")}
+              isActive={selectedProject === "on-going"}
+              onClick={() => onProjectSelect("on-going")}
               className="w-full justify-start"
             >
               <BarChart3 className="h-4 w-4" />
-              <span>On-going Projects Veza</span>
+              <span>All On-Going Projects</span>
               <span className="ml-auto text-xs text-muted-foreground">This Month</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
 
           <SidebarMenuItem>
             <SidebarMenuButton
-              isActive={selectedProject === "veza-onetime"}
-              onClick={() => onProjectSelect("veza-onetime")}
+              isActive={selectedProject === "one-time"}
+              onClick={() => onProjectSelect("one-time")}
               className="w-full justify-start"
             >
               <BarChart3 className="h-4 w-4" />
-              <span>One-time Projects Veza</span>
-              <span className="ml-auto text-xs text-muted-foreground">All Time</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-          {/* Shadow Projects */}
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              isActive={selectedProject === "shadow-ongoing"}
-              onClick={() => onProjectSelect("shadow-ongoing")}
-              className="w-full justify-start"
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span>On-going Projects Shadow</span>
-              <span className="ml-auto text-xs text-muted-foreground">This Month</span>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              isActive={selectedProject === "shadow-onetime"}
-              onClick={() => onProjectSelect("shadow-onetime")}
-              className="w-full justify-start"
-            >
-              <BarChart3 className="h-4 w-4" />
-              <span>One-time Projects Shadow</span>
+              <span>All One-Time Projects</span>
               <span className="ml-auto text-xs text-muted-foreground">All Time</span>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
 
         <div className="mt-4 space-y-2">
-          <Collapsible open={clientsExpanded} onOpenChange={setClientsExpanded}>
+          {/* Veza Digital Section */}
+          <Collapsible open={vezaExpanded} onOpenChange={setVezaExpanded}>
             <CollapsibleTrigger asChild>
               <SidebarMenuButton className="w-full justify-start">
-                {clientsExpanded ? <FolderOpen className="h-4 w-4" /> : <Folder className="h-4 w-4" />}
-                <span>All Clients</span>
-                {clientsExpanded ? (
+                <Building2 className="h-4 w-4" />
+                <span>Veza Digital</span>
+                {vezaExpanded ? (
                   <ChevronDown className="h-4 w-4 ml-auto" />
                 ) : (
                   <ChevronRight className="h-4 w-4 ml-auto" />
@@ -177,16 +168,41 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
               </SidebarMenuButton>
             </CollapsibleTrigger>
             <CollapsibleContent>
-              {/* Hide Blanks Filter */}
+              {/* Veza Project Type Views */}
+              <SidebarMenuSub>
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={selectedProject === "veza-ongoing"}
+                    onClick={() => onProjectSelect("veza-ongoing")}
+                    className="w-full justify-start"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Veza Digital Ongoing Projects</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={selectedProject === "veza-onetime"}
+                    onClick={() => onProjectSelect("veza-onetime")}
+                    className="w-full justify-start"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Veza Digital One-time Projects</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              </SidebarMenuSub>
+
+              {/* Veza Hide Blanks Filter */}
               <div className="px-2 py-2 border-b">
                 <div className="flex items-center space-x-2">
                   <Checkbox
-                    id="hide-blanks"
-                    checked={hideBlanks}
-                    onCheckedChange={(checked) => setHideBlanks(checked as boolean)}
+                    id="veza-hide-blanks"
+                    checked={vezaHideBlanks}
+                    onCheckedChange={(checked) => setVezaHideBlanks(checked as boolean)}
                   />
                   <label
-                    htmlFor="hide-blanks"
+                    htmlFor="veza-hide-blanks"
                     className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
                   >
                     Hide blanks
@@ -194,48 +210,139 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
                 </div>
               </div>
               
+              {/* Veza Individual Clients */}
               <SidebarMenuSub>
                 {loading ? (
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton>
-                      Loading clients...
+                      Loading Veza clients...
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
-                ) : clients.length === 0 ? (
+                ) : filterBlanks(vezaClients, vezaHideBlanks).length === 0 ? (
                   <SidebarMenuSubItem>
                     <SidebarMenuSubButton>
-                      No clients found
+                      No Veza clients found
                     </SidebarMenuSubButton>
                   </SidebarMenuSubItem>
                 ) : (
-                  clients
-                    .filter((client) => {
-                      if (!hideBlanks) return true
-                      const health = projectHealth[client.client_name]
-                      // Hide projects with no data (⚪) or loading (⏳)
-                      return health && health !== '⚪' && health !== '⏳'
-                    })
-                    .map((client) => (
-                      <SidebarMenuSubItem key={client.id}>
-                        <SidebarMenuSubButton
-                          isActive={selectedProject === client.client_name}
-                          onClick={() => onProjectSelect(client.client_name)}
-                          className="flex items-center justify-between w-full"
-                        >
-                          <div className="flex items-center gap-2">
-                            <span className="text-sm">
-                              {projectHealth[client.client_name] || '⏳'}
-                            </span>
-                            <span>{client.client_name}</span>
-                          </div>
-                          {client.project_type && (
-                            <span className="text-xs text-muted-foreground">
-                              {client.project_type === 'On-going' ? '🔄' : '📋'}
-                            </span>
-                          )}
-                        </SidebarMenuSubButton>
-                      </SidebarMenuSubItem>
-                    ))
+                  filterBlanks(vezaClients, vezaHideBlanks).map((client) => (
+                    <SidebarMenuSubItem key={client.id}>
+                      <SidebarMenuSubButton
+                        isActive={selectedProject === client.client_name}
+                        onClick={() => onProjectSelect(client.client_name)}
+                        className="flex items-center justify-between w-full"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">
+                            {projectHealth[client.client_name] || '⏳'}
+                          </span>
+                          <span>{client.client_name}</span>
+                        </div>
+                        {client.project_type && (
+                          <span className="text-xs text-muted-foreground">
+                            {client.project_type === 'On-going' || client.project_type === 'On-Going' ? '🔄' : '📋'}
+                          </span>
+                        )}
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  ))
+                )}
+              </SidebarMenuSub>
+            </CollapsibleContent>
+          </Collapsible>
+
+          {/* Shadow Digital Section */}
+          <Collapsible open={shadowExpanded} onOpenChange={setShadowExpanded}>
+            <CollapsibleTrigger asChild>
+              <SidebarMenuButton className="w-full justify-start">
+                <Building2 className="h-4 w-4" />
+                <span>Shadow Digital</span>
+                {shadowExpanded ? (
+                  <ChevronDown className="h-4 w-4 ml-auto" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 ml-auto" />
+                )}
+              </SidebarMenuButton>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              {/* Shadow Project Type Views */}
+              <SidebarMenuSub>
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={selectedProject === "shadow-ongoing"}
+                    onClick={() => onProjectSelect("shadow-ongoing")}
+                    className="w-full justify-start"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Shadow Digital Ongoing Projects</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={selectedProject === "shadow-onetime"}
+                    onClick={() => onProjectSelect("shadow-onetime")}
+                    className="w-full justify-start"
+                  >
+                    <BarChart3 className="h-4 w-4" />
+                    <span>Shadow Digital One-time Projects</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              </SidebarMenuSub>
+
+              {/* Shadow Hide Blanks Filter */}
+              <div className="px-2 py-2 border-b">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="shadow-hide-blanks"
+                    checked={shadowHideBlanks}
+                    onCheckedChange={(checked) => setShadowHideBlanks(checked as boolean)}
+                  />
+                  <label
+                    htmlFor="shadow-hide-blanks"
+                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                  >
+                    Hide blanks
+                  </label>
+                </div>
+              </div>
+              
+              {/* Shadow Individual Clients */}
+              <SidebarMenuSub>
+                {loading ? (
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton>
+                      Loading Shadow clients...
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                ) : filterBlanks(shadowClients, shadowHideBlanks).length === 0 ? (
+                  <SidebarMenuSubItem>
+                    <SidebarMenuSubButton>
+                      No Shadow clients found
+                    </SidebarMenuSubButton>
+                  </SidebarMenuSubItem>
+                ) : (
+                  filterBlanks(shadowClients, shadowHideBlanks).map((client) => (
+                    <SidebarMenuSubItem key={client.id}>
+                      <SidebarMenuSubButton
+                        isActive={selectedProject === client.client_name}
+                        onClick={() => onProjectSelect(client.client_name)}
+                        className="flex items-center justify-between w-full"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm">
+                            {projectHealth[client.client_name] || '⏳'}
+                          </span>
+                          <span>{client.client_name}</span>
+                        </div>
+                        {client.project_type && (
+                          <span className="text-xs text-muted-foreground">
+                            {client.project_type === 'On-going' || client.project_type === 'On-Going' ? '🔄' : '📋'}
+                          </span>
+                        )}
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  ))
                 )}
               </SidebarMenuSub>
             </CollapsibleContent>

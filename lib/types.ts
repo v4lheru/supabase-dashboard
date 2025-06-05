@@ -40,7 +40,7 @@ export interface ClientMapping {
   updated_at: string
   qa_list_name: string | null
   qa_list_id: string | null
-  project_type: 'On-going' | 'One-Time'
+  project_type: 'On-going' | 'On-Going' | 'One-Time' | null
   total_hours_month: string | null
   // New fields for comprehensive project tracking
   available_hours: number | null // Total hours for one-time projects or monthly hours for retainers

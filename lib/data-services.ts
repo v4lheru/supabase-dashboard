@@ -186,9 +186,13 @@ export function calculateProjectMetrics(client: ClientMapping, tasks: ClickUpTas
     task.status === 'to do' || task.status === 'backlog' || task.status === 'planning'
   ).length
 
+  // Normalize project type for metrics (handle database variations)
+  const normalizedProjectType: 'On-going' | 'One-Time' = 
+    (client.project_type === 'On-Going' || client.project_type === 'On-going') ? 'On-going' : 'One-Time'
+
   return {
     clientName: client.client_name,
-    projectType: client.project_type,
+    projectType: normalizedProjectType,
     totalHours,
     hoursSpent,
     hoursRemaining,
@@ -309,7 +313,12 @@ export async function getProjectAnalytics(clientName: string, timePeriod?: strin
     }
 
     const metrics = calculateProjectMetrics(client, tasks)
-    const teamMembers = extractTeamMembers(tasks, client.project_type)
+    // Normalize project type for team member extraction
+    const normalizedProjectType: 'On-going' | 'One-Time' | undefined = 
+      (client.project_type === 'On-Going' || client.project_type === 'On-going') ? 'On-going' : 
+      client.project_type === 'One-Time' ? 'One-Time' : undefined
+    
+    const teamMembers = extractTeamMembers(tasks, normalizedProjectType)
 
     console.log('✅ Analytics calculated for', clientName, '- Tasks:', tasks.length, 'Hours:', metrics.hoursSpent)
 
@@ -385,10 +394,19 @@ export async function getCompanyProjectsAnalytics(
     // Filter by company based on clickup_project_name
     const companyFilter = company === 'veza' ? 'Projects' : 'Shadow Digital Projects'
     
-    let filteredClients = clients.filter(client => 
-      client.clickup_project_name === companyFilter && 
-      client.project_type === projectType
-    )
+    let filteredClients = clients.filter(client => {
+      const matchesCompany = client.clickup_project_name === companyFilter
+      
+      // Handle both "On-going" and "On-Going" variations in the database
+      let matchesProjectType = false
+      if (projectType === 'On-going') {
+        matchesProjectType = client.project_type === 'On-going' || client.project_type === 'On-Going'
+      } else {
+        matchesProjectType = client.project_type === projectType
+      }
+      
+      return matchesCompany && matchesProjectType
+    })
     
     // Filter by status
     if (statusFilter !== 'all') {

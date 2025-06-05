@@ -25,8 +25,8 @@ interface ProjectDashboardProps {
 export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
   // Set default time period based on project type
   const getDefaultTimePeriod = (projectType: string, clientData?: ClientMapping) => {
-    // For individual projects, check the client's project type
-    if (clientData?.project_type === "On-going") return "this-month"
+    // For individual projects, check the client's project type (handle database variations)
+    if (clientData?.project_type === "On-going" || clientData?.project_type === "On-Going") return "this-month"
     if (clientData?.project_type === "One-Time") return "all-time"
     
     // For project type views (including new Veza/Shadow options)
@@ -201,6 +201,8 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
 
   const { client, metrics, teamMembers } = projectAnalytics
   const isOneTime = client.project_type === "One-Time"
+  const normalizedProjectType: 'On-going' | 'One-Time' = 
+    (client.project_type === 'On-Going' || client.project_type === 'On-going') ? 'On-going' : 'One-Time'
 
   return (
     <div className="p-6 space-y-6">
@@ -366,7 +368,7 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
           <CardContent>
             <OverdueTasksCompact 
               tasks={projectAnalytics.tasks}
-              projectType={client.project_type}
+              projectType={normalizedProjectType}
             />
           </CardContent>
         </Card>
@@ -393,7 +395,7 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
               teamMembers={teamMembers}
               totalAllocatedHours={metrics.totalHours}
               totalSpentHours={metrics.hoursSpent}
-              projectType={client.project_type}
+              projectType={normalizedProjectType}
             />
           </CardContent>
         </Card>
@@ -410,7 +412,7 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
             <FinancialBurnRateChart 
               teamMembers={teamMembers}
               metrics={metrics}
-              projectType={client.project_type}
+              projectType={normalizedProjectType}
             />
           </CardContent>
         </Card>

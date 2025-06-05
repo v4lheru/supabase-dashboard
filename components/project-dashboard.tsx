@@ -36,7 +36,12 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
     return "all-time"
   }
 
-  const [timePeriod, setTimePeriod] = useState("all-time") // Will be updated when data loads
+  // Initialize with the correct default period immediately
+  const getInitialTimePeriod = () => {
+    return getDefaultTimePeriod(selectedProject)
+  }
+
+  const [timePeriod, setTimePeriod] = useState(getInitialTimePeriod())
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all")
   const [projectAnalytics, setProjectAnalytics] = useState<ProjectAnalytics | null>(null)
   const [allProjectsData, setAllProjectsData] = useState<ProjectAnalytics[]>([])
@@ -44,15 +49,18 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
   const [loading, setLoading] = useState(true)
   const [hasSetInitialPeriod, setHasSetInitialPeriod] = useState(false)
 
-  // 🔄 Set initial time period only once when project changes (don't override user selections)
+  // 🔄 Set correct time period when project changes
   useEffect(() => {
     const isProjectTypeView = ["on-going", "one-time", "veza-ongoing", "veza-onetime", "shadow-ongoing", "shadow-onetime"].includes(selectedProject)
+    
+    // Always set the correct default period when switching projects
+    const defaultPeriod = getDefaultTimePeriod(selectedProject)
+    setTimePeriod(defaultPeriod)
+    
     if (isProjectTypeView) {
-      const defaultPeriod = getDefaultTimePeriod(selectedProject)
-      setTimePeriod(defaultPeriod)
       setHasSetInitialPeriod(true)
     } else {
-      // Reset flag for individual projects
+      // Reset flag for individual projects so they can set their own period based on client data
       setHasSetInitialPeriod(false)
     }
   }, [selectedProject])

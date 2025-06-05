@@ -36,44 +36,20 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
     return "all-time"
   }
 
-  // Initialize with the correct default period immediately
-  const getInitialTimePeriod = () => {
-    return getDefaultTimePeriod(selectedProject)
-  }
-
-  const [timePeriod, setTimePeriod] = useState(getInitialTimePeriod())
   const [statusFilter, setStatusFilter] = useState<ProjectStatusFilter>("all")
   const [projectAnalytics, setProjectAnalytics] = useState<ProjectAnalytics | null>(null)
   const [allProjectsData, setAllProjectsData] = useState<ProjectAnalytics[]>([])
   const [allClients, setAllClients] = useState<ClientMapping[]>([])
   const [loading, setLoading] = useState(true)
-  const [hasSetInitialPeriod, setHasSetInitialPeriod] = useState(false)
+  
+  // Initialize time period with correct default and update when project changes
+  const [timePeriod, setTimePeriod] = useState(() => getDefaultTimePeriod(selectedProject))
 
-  // 🔄 Set correct time period when project changes
+  // 🔄 Update time period when project changes
   useEffect(() => {
-    const isProjectTypeView = ["on-going", "one-time", "veza-ongoing", "veza-onetime", "shadow-ongoing", "shadow-onetime"].includes(selectedProject)
-    
-    // Always set the correct default period when switching projects
     const defaultPeriod = getDefaultTimePeriod(selectedProject)
     setTimePeriod(defaultPeriod)
-    
-    if (isProjectTypeView) {
-      setHasSetInitialPeriod(true)
-    } else {
-      // Reset flag for individual projects so they can set their own period based on client data
-      setHasSetInitialPeriod(false)
-    }
   }, [selectedProject])
-
-  // 🔄 Set initial time period for individual projects only once when analytics load
-  useEffect(() => {
-    const isProjectTypeView = ["on-going", "one-time", "veza-ongoing", "veza-onetime", "shadow-ongoing", "shadow-onetime"].includes(selectedProject)
-    if (projectAnalytics?.client && !isProjectTypeView && !hasSetInitialPeriod) {
-      const defaultPeriod = getDefaultTimePeriod(selectedProject, projectAnalytics.client)
-      setTimePeriod(defaultPeriod)
-      setHasSetInitialPeriod(true)
-    }
-  }, [projectAnalytics, selectedProject, hasSetInitialPeriod])
 
   // 🔄 Fetch project data when selectedProject, timePeriod, or statusFilter changes
   useEffect(() => {

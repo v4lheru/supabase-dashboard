@@ -45,18 +45,17 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
   // Initialize time period with correct default and update when project changes
   const [timePeriod, setTimePeriod] = useState(() => getDefaultTimePeriod(selectedProject))
 
-  // 🔄 Update time period when project changes
-  useEffect(() => {
-    const defaultPeriod = getDefaultTimePeriod(selectedProject)
-    setTimePeriod(defaultPeriod)
-  }, [selectedProject])
-
-  // 🔄 Fetch project data when selectedProject, timePeriod, or statusFilter changes
+  // 🔄 Fetch project data when selectedProject or statusFilter changes
   useEffect(() => {
     async function fetchProjectData() {
       setLoading(true)
+      
+      // Set correct time period for this project type
+      const correctTimePeriod = getDefaultTimePeriod(selectedProject)
+      setTimePeriod(correctTimePeriod)
+      
       try {
-        console.log('🔍 Fetching data for project:', selectedProject, 'period:', timePeriod, 'status:', statusFilter)
+        console.log('🔍 Fetching data for project:', selectedProject, 'period:', correctTimePeriod, 'status:', statusFilter)
 
         // Always fetch client mappings for historical view
         const clients = await getClientMappings()
@@ -64,32 +63,32 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
 
         // Handle new company-specific project types
         if (selectedProject === "veza-ongoing") {
-          const vezaOngoingData = await getCompanyProjectsAnalytics('veza', 'On-going', statusFilter, timePeriod)
+          const vezaOngoingData = await getCompanyProjectsAnalytics('veza', 'On-going', statusFilter, correctTimePeriod)
           setAllProjectsData(vezaOngoingData)
           setProjectAnalytics(null)
         } else if (selectedProject === "veza-onetime") {
-          const vezaOneTimeData = await getCompanyProjectsAnalytics('veza', 'One-Time', statusFilter, timePeriod)
+          const vezaOneTimeData = await getCompanyProjectsAnalytics('veza', 'One-Time', statusFilter, correctTimePeriod)
           setAllProjectsData(vezaOneTimeData)
           setProjectAnalytics(null)
         } else if (selectedProject === "shadow-ongoing") {
-          const shadowOngoingData = await getCompanyProjectsAnalytics('shadow', 'On-going', statusFilter, timePeriod)
+          const shadowOngoingData = await getCompanyProjectsAnalytics('shadow', 'On-going', statusFilter, correctTimePeriod)
           setAllProjectsData(shadowOngoingData)
           setProjectAnalytics(null)
         } else if (selectedProject === "shadow-onetime") {
-          const shadowOneTimeData = await getCompanyProjectsAnalytics('shadow', 'One-Time', statusFilter, timePeriod)
+          const shadowOneTimeData = await getCompanyProjectsAnalytics('shadow', 'One-Time', statusFilter, correctTimePeriod)
           setAllProjectsData(shadowOneTimeData)
           setProjectAnalytics(null)
         } else if (selectedProject === "on-going") {
-          const ongoingData = await getAllProjectsAnalytics('On-going', statusFilter, timePeriod)
+          const ongoingData = await getAllProjectsAnalytics('On-going', statusFilter, correctTimePeriod)
           setAllProjectsData(ongoingData)
           setProjectAnalytics(null)
         } else if (selectedProject === "one-time") {
-          const oneTimeData = await getAllProjectsAnalytics('One-Time', statusFilter, timePeriod)
+          const oneTimeData = await getAllProjectsAnalytics('One-Time', statusFilter, correctTimePeriod)
           setAllProjectsData(oneTimeData)
           setProjectAnalytics(null)
         } else {
           // Individual client project
-          const analytics = await getProjectAnalytics(selectedProject, timePeriod)
+          const analytics = await getProjectAnalytics(selectedProject, correctTimePeriod)
           setProjectAnalytics(analytics)
           setAllProjectsData([])
         }
@@ -103,7 +102,53 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
     }
 
     fetchProjectData()
-  }, [selectedProject, timePeriod, statusFilter])
+  }, [selectedProject, statusFilter])
+
+  // 🔄 Separate useEffect for when user manually changes time period
+  useEffect(() => {
+    if (!loading) {
+      // Only refetch if not currently loading (to avoid interfering with project changes)
+      async function refetchWithNewTimePeriod() {
+        setLoading(true)
+        try {
+          console.log('🔍 Refetching data with new time period:', selectedProject, 'period:', timePeriod, 'status:', statusFilter)
+
+          // Handle new company-specific project types
+          if (selectedProject === "veza-ongoing") {
+            const vezaOngoingData = await getCompanyProjectsAnalytics('veza', 'On-going', statusFilter, timePeriod)
+            setAllProjectsData(vezaOngoingData)
+          } else if (selectedProject === "veza-onetime") {
+            const vezaOneTimeData = await getCompanyProjectsAnalytics('veza', 'One-Time', statusFilter, timePeriod)
+            setAllProjectsData(vezaOneTimeData)
+          } else if (selectedProject === "shadow-ongoing") {
+            const shadowOngoingData = await getCompanyProjectsAnalytics('shadow', 'On-going', statusFilter, timePeriod)
+            setAllProjectsData(shadowOngoingData)
+          } else if (selectedProject === "shadow-onetime") {
+            const shadowOneTimeData = await getCompanyProjectsAnalytics('shadow', 'One-Time', statusFilter, timePeriod)
+            setAllProjectsData(shadowOneTimeData)
+          } else if (selectedProject === "on-going") {
+            const ongoingData = await getAllProjectsAnalytics('On-going', statusFilter, timePeriod)
+            setAllProjectsData(ongoingData)
+          } else if (selectedProject === "one-time") {
+            const oneTimeData = await getAllProjectsAnalytics('One-Time', statusFilter, timePeriod)
+            setAllProjectsData(oneTimeData)
+          } else {
+            // Individual client project
+            const analytics = await getProjectAnalytics(selectedProject, timePeriod)
+            setProjectAnalytics(analytics)
+          }
+
+          console.log('✅ Data refetched successfully with new time period')
+        } catch (error) {
+          console.error('💥 Failed to refetch with new time period:', error)
+        } finally {
+          setLoading(false)
+        }
+      }
+
+      refetchWithNewTimePeriod()
+    }
+  }, [timePeriod])
 
   // 📊 Show loading state
   if (loading) {

@@ -15,6 +15,7 @@ import { ProjectHealthCard } from "@/components/project-health-card"
 import { AllProjectsOverview } from "@/components/all-projects-overview"
 import { ProjectsHistoricalView } from "@/components/projects-historical-view"
 import { ProjectTypeDashboard } from "@/components/project-type-dashboard"
+import { TeamDashboard } from "@/components/team-dashboard"
 import { getProjectAnalytics, getAllProjectsAnalytics, getClientMappings, getCompanyProjectsAnalytics } from "@/lib/data-services"
 import { ProjectAnalytics, ProjectTypeFilter, ProjectStatusFilter, ClientMapping } from "@/lib/types"
 
@@ -203,6 +204,21 @@ export function ProjectDashboard({ selectedProject }: ProjectDashboardProps) {
         </div>
       </div>
     )
+  }
+
+  // 👥 Show team dashboard for team views
+  const isTeamView = ["design-team", "development-team", "seo-team", "qa-team"].includes(selectedProject)
+  
+  if (isTeamView) {
+    // Map team IDs to team names
+    const teamNameMap: Record<string, string> = {
+      "design-team": "Design",
+      "development-team": "Development", 
+      "seo-team": "SEO",
+      "qa-team": "QA"
+    }
+    
+    return <TeamDashboard teamId={teamNameMap[selectedProject]} />
   }
 
   // 📈 Show tabbed dashboard for project types (including company-specific views)

@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { ChevronDown, ChevronRight, Folder, FolderOpen, BarChart3, Building2 } from "lucide-react"
+import { ChevronDown, ChevronRight, Folder, FolderOpen, BarChart3, Building2, Users } from "lucide-react"
 import { Checkbox } from "@/components/ui/checkbox"
 import {
   Sidebar,
@@ -27,6 +27,7 @@ interface ProjectSidebarProps {
 export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSidebarProps) {
   const [vezaExpanded, setVezaExpanded] = useState(true)
   const [shadowExpanded, setShadowExpanded] = useState(true)
+  const [teamsExpanded, setTeamsExpanded] = useState(true)
   const [vezaHideBlanks, setVezaHideBlanks] = useState(false)
   const [shadowHideBlanks, setShadowHideBlanks] = useState(false)
   const [clients, setClients] = useState<ClientMapping[]>([])
@@ -152,6 +153,74 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+
+        {/* Teams Section */}
+        <div className="mt-2">
+          <Collapsible open={teamsExpanded} onOpenChange={setTeamsExpanded}>
+            <CollapsibleTrigger asChild>
+              <SidebarMenuButton className="w-full justify-start">
+                <Users className="h-4 w-4" />
+                <span>Teams</span>
+                {teamsExpanded ? (
+                  <ChevronDown className="h-4 w-4 ml-auto" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 ml-auto" />
+                )}
+              </SidebarMenuButton>
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <SidebarMenuSub>
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={selectedProject === "design-team"}
+                    onClick={() => onProjectSelect("design-team")}
+                    className="w-full justify-start"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span>Design Team</span>
+                    <span className="ml-auto text-xs text-muted-foreground">6 members</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={selectedProject === "development-team"}
+                    onClick={() => onProjectSelect("development-team")}
+                    className="w-full justify-start"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span>Development Team</span>
+                    <span className="ml-auto text-xs text-muted-foreground">5 members</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={selectedProject === "seo-team"}
+                    onClick={() => onProjectSelect("seo-team")}
+                    className="w-full justify-start"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span>SEO Team</span>
+                    <span className="ml-auto text-xs text-muted-foreground">1 member</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+
+                <SidebarMenuSubItem>
+                  <SidebarMenuSubButton
+                    isActive={selectedProject === "qa-team"}
+                    onClick={() => onProjectSelect("qa-team")}
+                    className="w-full justify-start"
+                  >
+                    <Users className="h-4 w-4" />
+                    <span>QA Team</span>
+                    <span className="ml-auto text-xs text-muted-foreground">1 member</span>
+                  </SidebarMenuSubButton>
+                </SidebarMenuSubItem>
+              </SidebarMenuSub>
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
 
         <div className="mt-4 space-y-2">
           {/* Veza Digital Section */}

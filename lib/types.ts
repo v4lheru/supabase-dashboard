@@ -105,3 +105,85 @@ export type ProjectTypeFilter = 'all' | 'On-going' | 'One-Time'
 
 // Project status filters
 export type ProjectStatusFilter = 'all' | 'Active' | 'Not Active' | 'Paused' | 'Completed'
+
+// Team member interfaces
+export interface TeamMemberMapping {
+  id: number
+  clickup_name: string
+  display_name: string
+  team: string
+  role: string
+  weekly_hours: number
+  status: string
+  created_at: string
+  updated_at: string
+  team_total_weekly_hours: number
+  team_members_count: number
+}
+
+export interface TeamMemberAnalytics {
+  id: number
+  clickup_name: string
+  display_name: string
+  team: string
+  role: string
+  weekly_hours: number
+  status: string
+  // Calculated metrics
+  hoursSpentThisWeek: number
+  hoursSpentLastWeek: number
+  hoursSpentThisMonth: number
+  hoursSpentLast3Months: number
+  utilizationThisWeek: number
+  utilizationLastWeek: number
+  utilizationThisMonth: number
+  utilization3MonthAvg: number
+  // Task metrics
+  activeTasksCount: number
+  completedTasksThisWeek: number
+  totalTasksThisWeek: number
+  // Project allocation
+  currentProjects: Array<{
+    projectName: string
+    hoursAllocated: number
+    averageWeeklyHours: number
+  }>
+  // Active tasks with details
+  activeTasks: Array<{
+    task_id: string
+    task_name: string
+    status: string
+    project: string
+    due_date: string | null
+    priority: string | null
+  }>
+}
+
+export interface TeamAnalytics {
+  teamName: string
+  totalMembers: number
+  totalWeeklyCapacity: number
+  // Team utilization metrics
+  teamUtilizationThisWeek: number
+  teamUtilizationLastWeek: number
+  teamUtilizationThisMonth: number
+  teamUtilization3MonthAvg: number
+  // Capacity forecasting
+  upcomingWeekCapacity: number
+  upcomingTwoWeeksCapacity: number
+  upcomingMonthCapacity: number
+  // Task metrics
+  totalActiveTasks: number
+  totalCompletedTasksThisWeek: number
+  totalTasksThisWeek: number
+  teamProgress: number
+  // Task status breakdown
+  tasksByStatus: {
+    todo: number
+    inProgress: number
+    waitingApproval: number
+    completed: number
+  }
+  // Team members
+  members: TeamMemberAnalytics[]
+}

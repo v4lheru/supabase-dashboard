@@ -1,5 +1,5 @@
 import { supabase } from './supabase'
-import { ClickUpTask, ClientMapping, ProjectMetrics, TeamMember, ProjectAnalytics, TimePeriod, ProjectTypeFilter, ProjectStatusFilter } from './types'
+import { ClickUpTask, ClientMapping, ProjectMetrics, TeamMember, ProjectAnalytics, TimePeriod, ProjectTypeFilter, ProjectStatusFilter, TeamMemberMapping, TeamMemberAnalytics, TeamAnalytics } from './types'
 
 /**
  * 🔄 Fetches all client mappings from Supabase
@@ -531,6 +531,334 @@ export async function getClientTasksForMonth(clientName: string, year: number, m
     return data || []
   } catch (error) {
     console.error('💥 Failed to fetch monthly tasks for client:', clientName, error)
+    return []
+  }
+}
+
+/**
+ * 👥 Fetches all team member mappings from Supabase
+ * This provides the team structure and individual capacity information
+ */
+export async function getTeamMembers(): Promise<TeamMemberMapping[]> {
+  try {
+    const { data, error } = await supabase
+      .from('team_members')
+      .select('*')
+      .order('team', { ascending: true })
+      .order('display_name', { ascending: true })
+
+    if (error) {
+      console.error('❌ Error fetching team members:', error)
+      throw error
+    }
+
+    console.log('✅ Successfully fetched team members:', data?.length || 0, 'members')
+    return data || []
+  } catch (error) {
+    console.error('💥 Failed to fetch team members:', error)
+    return []
+  }
+}
+
+/**
+ * 📊 Fetches all ClickUp tasks for team utilization analysis
+ * Gets tasks across all projects to calculate team member utilization
+ */
+export async function getAllClickUpTasks(timePeriod?: TimePeriod): Promise<ClickUpTask[]> {
+  try {
+    let query = supabase
+      .from('clickup_supabase_main')
+      .select('*')
+
+    // Add time filtering based on period
+    if (timePeriod && timePeriod !== 'all-time') {
+      const now = new Date()
+      let startDate: Date
+      let endDate: Date | null = null
+
+      switch (timePeriod) {
+        case 'this-month':
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+          endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0)
+          break
+        case 'last-30-days':
+          startDate = new Date(now.getTime() - (30 * 24 * 60 * 60 * 1000))
+          break
+        case 'this-quarter':
+          const currentQuarter = Math.floor(now.getMonth() / 3)
+          startDate = new Date(now.getFullYear(), currentQuarter * 3, 1)
+          break
+        case 'last-quarter':
+          const lastQuarter = Math.floor(now.getMonth() / 3) - 1
+          if (lastQuarter < 0) {
+            startDate = new Date(now.getFullYear() - 1, 9, 1)
+            endDate = new Date(now.getFullYear() - 1, 11, 31)
+          } else {
+            startDate = new Date(now.getFullYear(), lastQuarter * 3, 1)
+            endDate = new Date(now.getFullYear(), (lastQuarter + 1) * 3, 0)
+          }
+          break
+        case 'this-year':
+          startDate = new Date(now.getFullYear(), 0, 1)
+          break
+        case 'last-year':
+          startDate = new Date(now.getFullYear() - 1, 0, 1)
+          endDate = new Date(now.getFullYear() - 1, 11, 31)
+          break
+        default:
+          startDate = new Date(now.getFullYear(), now.getMonth(), 1)
+      }
+
+      query = query.gte('date_updated', startDate.getTime())
+      if (endDate) {
+        query = query.lte('date_updated', endDate.getTime())
+      }
+    }
+
+    const { data, error } = await query.order('date_updated', { ascending: false })
+
+    if (error) {
+      console.error('❌ Error fetching all ClickUp tasks:', error)
+      throw error
+    }
+
+    console.log('✅ Successfully fetched all ClickUp tasks:', data?.length || 0, 'tasks', timePeriod ? `(${timePeriod})` : '')
+    return data || []
+  } catch (error) {
+    console.error('💥 Failed to fetch all ClickUp tasks:', error)
+    return []
+  }
+}
+
+/**
+ * 🧮 Calculates team member analytics based on team mapping and ClickUp tasks
+ * Maps clickup_name from team_members to assignees in clickup_supabase_main
+ */
+export function calculateTeamMemberAnalytics(
+  teamMember: TeamMemberMapping, 
+  allTasks: ClickUpTask[]
+): TeamMemberAnalytics {
+  const now = new Date()
+  
+  // Calculate time boundaries
+  const thisWeekStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay()).getTime()
+  const lastWeekStart = new Date(thisWeekStart - (7 * 24 * 60 * 60 * 1000)).getTime()
+  const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+  const last3MonthsStart = new Date(now.getFullYear(), now.getMonth() - 3, 1).getTime()
+
+  // Filter tasks assigned to this team member
+  const memberTasks = allTasks.filter(task => {
+    if (!task.assignees) return false
+    const assignees = task.assignees.split(',').map(name => name.trim())
+    return assignees.includes(teamMember.clickup_name)
+  })
+
+  // Calculate time spent in different periods
+  const calculateHoursForPeriod = (tasks: ClickUpTask[], startTime: number, endTime?: number) => {
+    const filteredTasks = tasks.filter(task => {
+      const taskTime = parseInt(task.date_updated)
+      return taskTime >= startTime && (!endTime || taskTime <= endTime)
+    })
+    
+    const totalMs = filteredTasks.reduce((sum, task) => {
+      const timeSpent = parseInt(task.time_spent || '0')
+      const assignees = task.assignees?.split(',').map(name => name.trim()) || []
+      const assigneeCount = assignees.length
+      return sum + (timeSpent / assigneeCount) // Split time among assignees
+    }, 0)
+    
+    return Math.round(totalMs / (1000 * 60 * 60) * 100) / 100 // Convert to hours
+  }
+
+  const hoursSpentThisWeek = calculateHoursForPeriod(memberTasks, thisWeekStart)
+  const hoursSpentLastWeek = calculateHoursForPeriod(memberTasks, lastWeekStart, thisWeekStart)
+  const hoursSpentThisMonth = calculateHoursForPeriod(memberTasks, thisMonthStart)
+  const hoursSpentLast3Months = calculateHoursForPeriod(memberTasks, last3MonthsStart)
+
+  // Calculate utilization percentages
+  const utilizationThisWeek = (hoursSpentThisWeek / teamMember.weekly_hours) * 100
+  const utilizationLastWeek = (hoursSpentLastWeek / teamMember.weekly_hours) * 100
+  const utilizationThisMonth = (hoursSpentThisMonth / (teamMember.weekly_hours * 4)) * 100 // Assume 4 weeks per month
+  const utilization3MonthAvg = (hoursSpentLast3Months / (teamMember.weekly_hours * 12)) * 100 // 3 months * 4 weeks
+
+  // Calculate task metrics
+  const activeTasks = memberTasks.filter(task => 
+    task.status !== 'complete' && task.status !== 'approved'
+  )
+  
+  const thisWeekTasks = memberTasks.filter(task => {
+    const taskTime = parseInt(task.date_updated)
+    return taskTime >= thisWeekStart
+  })
+  
+  const completedTasksThisWeek = thisWeekTasks.filter(task => 
+    task.status === 'complete' || task.status === 'approved'
+  ).length
+
+  // Calculate project allocation (simplified - would need client_mappings integration for full accuracy)
+  const projectMap = new Map<string, { hours: number; count: number }>()
+  
+  memberTasks.forEach(task => {
+    const projectName = task.folder_name || 'Unknown Project'
+    const timeSpent = parseInt(task.time_spent || '0')
+    const assignees = task.assignees?.split(',').map(name => name.trim()) || []
+    const assigneeCount = assignees.length
+    const memberHours = (timeSpent / assigneeCount) / (1000 * 60 * 60) // Convert to hours and split
+    
+    const current = projectMap.get(projectName) || { hours: 0, count: 0 }
+    projectMap.set(projectName, {
+      hours: current.hours + memberHours,
+      count: current.count + 1
+    })
+  })
+
+  const currentProjects = Array.from(projectMap.entries()).map(([projectName, data]) => ({
+    projectName,
+    hoursAllocated: Math.round(data.hours * 100) / 100,
+    averageWeeklyHours: Math.round((data.hours / 12) * 100) / 100 // Rough weekly average over 3 months
+  })).sort((a, b) => b.hoursAllocated - a.hoursAllocated)
+
+  // Format active tasks
+  const activeTasksFormatted = activeTasks.slice(0, 10).map(task => ({
+    task_id: task.task_id,
+    task_name: task.task_name,
+    status: task.status,
+    project: task.folder_name || 'Unknown Project',
+    due_date: task.due_date,
+    priority: task.priority
+  }))
+
+  return {
+    id: teamMember.id,
+    clickup_name: teamMember.clickup_name,
+    display_name: teamMember.display_name,
+    team: teamMember.team,
+    role: teamMember.role,
+    weekly_hours: teamMember.weekly_hours,
+    status: teamMember.status,
+    // Calculated metrics - round to 1 decimal place
+    hoursSpentThisWeek: Math.round(hoursSpentThisWeek * 10) / 10,
+    hoursSpentLastWeek: Math.round(hoursSpentLastWeek * 10) / 10,
+    hoursSpentThisMonth: Math.round(hoursSpentThisMonth * 10) / 10,
+    hoursSpentLast3Months: Math.round(hoursSpentLast3Months * 10) / 10,
+    utilizationThisWeek: Math.round(utilizationThisWeek),
+    utilizationLastWeek: Math.round(utilizationLastWeek),
+    utilizationThisMonth: Math.round(utilizationThisMonth),
+    utilization3MonthAvg: Math.round(utilization3MonthAvg),
+    // Task metrics
+    activeTasksCount: activeTasks.length,
+    completedTasksThisWeek,
+    totalTasksThisWeek: thisWeekTasks.length,
+    // Project allocation
+    currentProjects,
+    // Active tasks
+    activeTasks: activeTasksFormatted
+  }
+}
+
+/**
+ * 🏢 Gets complete team analytics for a specific team
+ * Combines team member mappings with ClickUp task data
+ */
+export async function getTeamAnalytics(teamName: string): Promise<TeamAnalytics | null> {
+  try {
+    console.log('🔍 Fetching team analytics for:', teamName)
+    
+    const [teamMembers, allTasks] = await Promise.all([
+      getTeamMembers(),
+      getAllClickUpTasks('last-30-days') // Get recent tasks for analysis
+    ])
+
+    const teamMemberMappings = teamMembers.filter(member => member.team === teamName)
+    
+    if (teamMemberMappings.length === 0) {
+      console.warn('⚠️ No team members found for team:', teamName)
+      return null
+    }
+
+    // Calculate analytics for each team member
+    const memberAnalytics = teamMemberMappings.map(member => 
+      calculateTeamMemberAnalytics(member, allTasks)
+    )
+
+    // Calculate team-level metrics
+    const totalMembers = memberAnalytics.length
+    const totalWeeklyCapacity = memberAnalytics.reduce((sum, member) => sum + member.weekly_hours, 0)
+    
+    const teamUtilizationThisWeek = memberAnalytics.reduce((sum, member) => sum + member.utilizationThisWeek, 0) / totalMembers
+    const teamUtilizationLastWeek = memberAnalytics.reduce((sum, member) => sum + member.utilizationLastWeek, 0) / totalMembers
+    const teamUtilizationThisMonth = memberAnalytics.reduce((sum, member) => sum + member.utilizationThisMonth, 0) / totalMembers
+    const teamUtilization3MonthAvg = memberAnalytics.reduce((sum, member) => sum + member.utilization3MonthAvg, 0) / totalMembers
+
+    // Calculate capacity forecasting (simplified - would need task estimation data for accuracy)
+    const upcomingWeekCapacity = Math.max(0, 100 - teamUtilizationThisWeek)
+    const upcomingTwoWeeksCapacity = Math.max(0, 100 - (teamUtilizationThisWeek * 0.8)) // Rough estimate
+    const upcomingMonthCapacity = Math.max(0, 100 - (teamUtilizationThisMonth * 0.9)) // Rough estimate
+
+    // Calculate task metrics
+    const totalActiveTasks = memberAnalytics.reduce((sum, member) => sum + member.activeTasksCount, 0)
+    const totalCompletedTasksThisWeek = memberAnalytics.reduce((sum, member) => sum + member.completedTasksThisWeek, 0)
+    const totalTasksThisWeek = memberAnalytics.reduce((sum, member) => sum + member.totalTasksThisWeek, 0)
+    const teamProgress = totalTasksThisWeek > 0 ? (totalCompletedTasksThisWeek / totalTasksThisWeek) * 100 : 0
+
+    // Calculate task status breakdown (simplified mapping from ClickUp statuses)
+    const allActiveTasks = memberAnalytics.flatMap(member => member.activeTasks)
+    const tasksByStatus = {
+      todo: allActiveTasks.filter(task => task.status === 'to do' || task.status === 'backlog').length,
+      inProgress: allActiveTasks.filter(task => task.status === 'in progress' || task.status === 'review').length,
+      waitingApproval: allActiveTasks.filter(task => task.status === 'client review' || task.status === 'approval').length,
+      completed: allActiveTasks.filter(task => task.status === 'complete' || task.status === 'approved').length
+    }
+
+    console.log('✅ Team analytics calculated for', teamName, '- Members:', totalMembers, 'Active Tasks:', totalActiveTasks)
+
+    return {
+      teamName,
+      totalMembers,
+      totalWeeklyCapacity,
+      // Team utilization metrics
+      teamUtilizationThisWeek: Math.round(teamUtilizationThisWeek * 100) / 100,
+      teamUtilizationLastWeek: Math.round(teamUtilizationLastWeek * 100) / 100,
+      teamUtilizationThisMonth: Math.round(teamUtilizationThisMonth * 100) / 100,
+      teamUtilization3MonthAvg: Math.round(teamUtilization3MonthAvg * 100) / 100,
+      // Capacity forecasting
+      upcomingWeekCapacity: Math.round(upcomingWeekCapacity * 100) / 100,
+      upcomingTwoWeeksCapacity: Math.round(upcomingTwoWeeksCapacity * 100) / 100,
+      upcomingMonthCapacity: Math.round(upcomingMonthCapacity * 100) / 100,
+      // Task metrics
+      totalActiveTasks,
+      totalCompletedTasksThisWeek,
+      totalTasksThisWeek,
+      teamProgress: Math.round(teamProgress * 100) / 100,
+      // Task status breakdown
+      tasksByStatus,
+      // Team members
+      members: memberAnalytics
+    }
+  } catch (error) {
+    console.error('💥 Failed to get team analytics for:', teamName, error)
+    return null
+  }
+}
+
+/**
+ * 📋 Gets analytics for all teams
+ * Returns analytics for Design, Development, SEO, and QA teams
+ */
+export async function getAllTeamsAnalytics(): Promise<TeamAnalytics[]> {
+  try {
+    console.log('🔍 Fetching analytics for all teams')
+    
+    const teamNames = ['Design', 'Development', 'SEO', 'QA']
+    const analyticsPromises = teamNames.map(teamName => getTeamAnalytics(teamName))
+    
+    const results = await Promise.all(analyticsPromises)
+    const validResults = results.filter((result): result is TeamAnalytics => result !== null)
+    
+    console.log('✅ All teams analytics fetched:', validResults.length, 'teams')
+    return validResults
+  } catch (error) {
+    console.error('💥 Failed to get all teams analytics:', error)
     return []
   }
 }

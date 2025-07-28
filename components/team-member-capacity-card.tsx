@@ -78,27 +78,51 @@ export function TeamMemberCapacityCard({ member }: TeamMemberCapacityCardProps) 
           </div>
         </div>
 
-        {/* Upcoming Capacity */}
+        {/* Upcoming Capacity - Estimate Based */}
         <div className="space-y-3">
           <h4 className="text-sm font-medium flex items-center gap-2">
             <Clock className="h-4 w-4" />
-            Upcoming Capacity
+            Planned Capacity
           </h4>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span>Next Week</span>
-              <span className={getLoadColor(member.utilizationThisWeek)}>{upcomingWeekAvailability}% available</span>
+              <span className={getLoadColor(member.plannedUtilizationNextWeek)}>
+                {Math.max(0, 100 - member.plannedUtilizationNextWeek)}% available
+              </span>
             </div>
-            <Progress value={member.utilizationThisWeek} className="h-1.5" />
+            <Progress value={member.plannedUtilizationNextWeek} className="h-1.5" />
+            <div className="text-xs text-muted-foreground">
+              {member.estimatedHoursNextWeek}h estimated
+            </div>
           </div>
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span>Next Month</span>
-              <span className={getLoadColor(member.utilizationThisMonth)}>{upcomingMonthAvailability}% available</span>
+              <span className={getLoadColor(member.plannedUtilizationNextMonth)}>
+                {Math.max(0, 100 - member.plannedUtilizationNextMonth)}% available
+              </span>
             </div>
-            <Progress value={member.utilizationThisMonth} className="h-1.5" />
+            <Progress value={member.plannedUtilizationNextMonth} className="h-1.5" />
+            <div className="text-xs text-muted-foreground">
+              {member.estimatedHoursNextMonth}h estimated
+            </div>
+          </div>
+
+          {/* Efficiency Metrics */}
+          <div className="pt-2 border-t">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <span className="text-muted-foreground">Estimate Coverage:</span>
+                <span className="ml-1 font-medium">{member.estimateCoverage}%</span>
+              </div>
+              <div>
+                <span className="text-muted-foreground">Efficiency:</span>
+                <span className="ml-1 font-medium">{member.efficiencyRatio}%</span>
+              </div>
+            </div>
           </div>
         </div>
 

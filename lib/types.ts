@@ -122,14 +122,14 @@ export interface TeamMemberMapping {
 }
 
 export interface TeamMemberAnalytics {
-  id: number
+  id: string
   clickup_name: string
   display_name: string
   team: string
   role: string
   weekly_hours: number
   status: string
-  // Calculated metrics
+  // Historical metrics - actual time spent
   hoursSpentThisWeek: number
   hoursSpentLastWeek: number
   hoursSpentThisMonth: number
@@ -138,24 +138,38 @@ export interface TeamMemberAnalytics {
   utilizationLastWeek: number
   utilizationThisMonth: number
   utilization3MonthAvg: number
+  // Capacity planning metrics - estimated time
+  estimatedHoursNextWeek: number
+  estimatedHoursNext2Weeks: number
+  estimatedHoursNextMonth: number
+  plannedUtilizationNextWeek: number
+  plannedUtilizationNext2Weeks: number
+  plannedUtilizationNextMonth: number
+  // Efficiency metrics - planned vs actual
+  efficiencyRatio: number
+  estimateCoverage: number
   // Task metrics
   activeTasksCount: number
   completedTasksThisWeek: number
   totalTasksThisWeek: number
+  tasksWithEstimates: number
   // Project allocation
   currentProjects: Array<{
     projectName: string
     hoursAllocated: number
     averageWeeklyHours: number
+    estimatedHours?: number
   }>
-  // Active tasks with details
+  // Active tasks
   activeTasks: Array<{
     task_id: string
     task_name: string
     status: string
     project: string
-    due_date: string | null
-    priority: string | null
+    due_date?: string
+    priority?: string
+    estimated_hours?: number
+    actual_hours?: number
   }>
 }
 

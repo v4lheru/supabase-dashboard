@@ -633,6 +633,7 @@ export async function getAllClickUpTasks(timePeriod?: TimePeriod): Promise<Click
 /**
  * 🧮 Calculates team member analytics based on team mapping and ClickUp tasks
  * Maps clickup_name from team_members to assignees in clickup_supabase_main
+ * Includes both historical (time_spent) and capacity planning (time_estimate) metrics
  */
 export function calculateTeamMemberAnalytics(
   teamMember: TeamMemberMapping, 
@@ -645,6 +646,12 @@ export function calculateTeamMemberAnalytics(
   const lastWeekStart = new Date(thisWeekStart - (7 * 24 * 60 * 60 * 1000)).getTime()
   const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
   const last3MonthsStart = new Date(now.getFullYear(), now.getMonth() - 3, 1).getTime()
+  
+  // Future time boundaries for capacity planning
+  const nextWeekStart = new Date(thisWeekStart + (7 * 24 * 60 * 60 * 1000)).getTime()
+  const next2WeeksStart = new Date(thisWeekStart + (14 * 24 * 60 * 60 * 1000)).getTime()
+  const nextMonthStart = new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime()
+  const nextMonthEnd = new Date(now.getFullYear(), now.getMonth() + 2, 0).getTime()
 
   // Filter tasks assigned to this team member
   const memberTasks = allTasks.filter(task => {
@@ -653,7 +660,7 @@ export function calculateTeamMemberAnalytics(
     return assignees.includes(teamMember.clickup_name)
   })
 
-  // Calculate time spent in different periods
+  // Calculate HISTORICAL time spent in different periods
   const calculateHoursForPeriod = (tasks: ClickUpTask[], startTime: number, endTime?: number) => {
     const filteredTasks = tasks.filter(task => {
       const taskTime = parseInt(task.date_updated)
@@ -670,16 +677,69 @@ export function calculateTeamMemberAnalytics(
     return Math.round(totalMs / (1000 * 60 * 60) * 100) / 100 // Convert to hours
   }
 
+  // Calculate ESTIMATED time for future periods (active tasks only)
+  const calculateEstimatedHoursForPeriod = (tasks: ClickUpTask[], startTime: number, endTime?: number) => {
+    const activeTasks = tasks.filter(task => 
+      task.status !== 'complete' && task.status !== 'approved'
+    )
+    
+    const filteredTasks = activeTasks.filter(task => {
+      const dueDate = task.due_date ? parseInt(task.due_date) : null
+      if (!dueDate) return false // Only include tasks with due dates for planning
+      return dueDate >= startTime && (!endTime || dueDate <= endTime)
+    })
+    
+    const totalMs = filteredTasks.reduce((sum, task) => {
+      const timeEstimate = parseInt(task.time_estimate || '0')
+      const assignees = task.assignees?.split(',').map(name => name.trim()) || []
+      const assigneeCount = assignees.length
+      return sum + (timeEstimate / assigneeCount) // Split estimate among assignees
+    }, 0)
+    
+    return Math.round(totalMs / (1000 * 60 * 60) * 100) / 100 // Convert to hours
+  }
+
+  // Historical metrics
   const hoursSpentThisWeek = calculateHoursForPeriod(memberTasks, thisWeekStart)
   const hoursSpentLastWeek = calculateHoursForPeriod(memberTasks, lastWeekStart, thisWeekStart)
   const hoursSpentThisMonth = calculateHoursForPeriod(memberTasks, thisMonthStart)
   const hoursSpentLast3Months = calculateHoursForPeriod(memberTasks, last3MonthsStart)
+
+  // Capacity planning metrics
+  const estimatedHoursNextWeek = calculateEstimatedHoursForPeriod(memberTasks, nextWeekStart, next2WeeksStart)
+  const estimatedHoursNext2Weeks = calculateEstimatedHoursForPeriod(memberTasks, nextWeekStart, next2WeeksStart + (7 * 24 * 60 * 60 * 1000))
+  const estimatedHoursNextMonth = calculateEstimatedHoursForPeriod(memberTasks, nextMonthStart, nextMonthEnd)
 
   // Calculate utilization percentages
   const utilizationThisWeek = (hoursSpentThisWeek / teamMember.weekly_hours) * 100
   const utilizationLastWeek = (hoursSpentLastWeek / teamMember.weekly_hours) * 100
   const utilizationThisMonth = (hoursSpentThisMonth / (teamMember.weekly_hours * 4)) * 100 // Assume 4 weeks per month
   const utilization3MonthAvg = (hoursSpentLast3Months / (teamMember.weekly_hours * 12)) * 100 // 3 months * 4 weeks
+
+  // Calculate planned utilization percentages
+  const plannedUtilizationNextWeek = (estimatedHoursNextWeek / teamMember.weekly_hours) * 100
+  const plannedUtilizationNext2Weeks = (estimatedHoursNext2Weeks / (teamMember.weekly_hours * 2)) * 100
+  const plannedUtilizationNextMonth = (estimatedHoursNextMonth / (teamMember.weekly_hours * 4)) * 100
+
+  // Calculate efficiency metrics
+  const tasksWithBothEstimateAndActual = memberTasks.filter(task => 
+    parseInt(task.time_estimate || '0') > 0 && parseInt(task.time_spent || '0') > 0
+  )
+  
+  const totalEstimatedHours = tasksWithBothEstimateAndActual.reduce((sum, task) => {
+    const timeEstimate = parseInt(task.time_estimate || '0')
+    const assignees = task.assignees?.split(',').map(name => name.trim()) || []
+    return sum + (timeEstimate / assignees.length) / (1000 * 60 * 60)
+  }, 0)
+  
+  const totalActualHours = tasksWithBothEstimateAndActual.reduce((sum, task) => {
+    const timeSpent = parseInt(task.time_spent || '0')
+    const assignees = task.assignees?.split(',').map(name => name.trim()) || []
+    return sum + (timeSpent / assignees.length) / (1000 * 60 * 60)
+  }, 0)
+  
+  const efficiencyRatio = totalEstimatedHours > 0 ? (totalActualHours / totalEstimatedHours) * 100 : 0
+  const estimateCoverage = memberTasks.length > 0 ? (memberTasks.filter(task => parseInt(task.time_estimate || '0') > 0).length / memberTasks.length) * 100 : 0
 
   // Calculate task metrics
   const activeTasks = memberTasks.filter(task => 
@@ -695,48 +755,67 @@ export function calculateTeamMemberAnalytics(
     task.status === 'complete' || task.status === 'approved'
   ).length
 
-  // Calculate project allocation (simplified - would need client_mappings integration for full accuracy)
-  const projectMap = new Map<string, { hours: number; count: number }>()
+  const tasksWithEstimates = memberTasks.filter(task => 
+    parseInt(task.time_estimate || '0') > 0
+  ).length
+
+  // Calculate project allocation with estimates
+  const projectMap = new Map<string, { hours: number; count: number; estimatedHours: number }>()
   
   memberTasks.forEach(task => {
     const projectName = task.folder_name || 'Unknown Project'
     const timeSpent = parseInt(task.time_spent || '0')
+    const timeEstimate = parseInt(task.time_estimate || '0')
     const assignees = task.assignees?.split(',').map(name => name.trim()) || []
     const assigneeCount = assignees.length
     const memberHours = (timeSpent / assigneeCount) / (1000 * 60 * 60) // Convert to hours and split
+    const memberEstimatedHours = (timeEstimate / assigneeCount) / (1000 * 60 * 60)
     
-    const current = projectMap.get(projectName) || { hours: 0, count: 0 }
+    const current = projectMap.get(projectName) || { hours: 0, count: 0, estimatedHours: 0 }
     projectMap.set(projectName, {
       hours: current.hours + memberHours,
-      count: current.count + 1
+      count: current.count + 1,
+      estimatedHours: current.estimatedHours + memberEstimatedHours
     })
   })
 
   const currentProjects = Array.from(projectMap.entries()).map(([projectName, data]) => ({
     projectName,
     hoursAllocated: Math.round(data.hours * 100) / 100,
-    averageWeeklyHours: Math.round((data.hours / 12) * 100) / 100 // Rough weekly average over 3 months
+    averageWeeklyHours: Math.round((data.hours / 12) * 100) / 100, // Rough weekly average over 3 months
+    estimatedHours: Math.round(data.estimatedHours * 100) / 100
   })).sort((a, b) => b.hoursAllocated - a.hoursAllocated)
 
-  // Format active tasks
-  const activeTasksFormatted = activeTasks.slice(0, 10).map(task => ({
-    task_id: task.task_id,
-    task_name: task.task_name,
-    status: task.status,
-    project: task.folder_name || 'Unknown Project',
-    due_date: task.due_date,
-    priority: task.priority
-  }))
+  // Format active tasks with estimates
+  const activeTasksFormatted = activeTasks.slice(0, 10).map(task => {
+    const assignees = task.assignees?.split(',').map(name => name.trim()) || []
+    const assigneeCount = assignees.length
+    const estimatedHours = parseInt(task.time_estimate || '0') > 0 ? 
+      Math.round((parseInt(task.time_estimate || '0') / assigneeCount) / (1000 * 60 * 60) * 100) / 100 : undefined
+    const actualHours = parseInt(task.time_spent || '0') > 0 ? 
+      Math.round((parseInt(task.time_spent || '0') / assigneeCount) / (1000 * 60 * 60) * 100) / 100 : undefined
+
+    return {
+      task_id: task.task_id,
+      task_name: task.task_name,
+      status: task.status,
+      project: task.folder_name || 'Unknown Project',
+      due_date: task.due_date || undefined,
+      priority: task.priority || undefined,
+      estimated_hours: estimatedHours,
+      actual_hours: actualHours
+    }
+  })
 
   return {
-    id: teamMember.id,
+    id: teamMember.id.toString(),
     clickup_name: teamMember.clickup_name,
     display_name: teamMember.display_name,
     team: teamMember.team,
     role: teamMember.role,
     weekly_hours: teamMember.weekly_hours,
     status: teamMember.status,
-    // Calculated metrics - round to 1 decimal place
+    // Historical metrics - round to 1 decimal place
     hoursSpentThisWeek: Math.round(hoursSpentThisWeek * 10) / 10,
     hoursSpentLastWeek: Math.round(hoursSpentLastWeek * 10) / 10,
     hoursSpentThisMonth: Math.round(hoursSpentThisMonth * 10) / 10,
@@ -745,10 +824,21 @@ export function calculateTeamMemberAnalytics(
     utilizationLastWeek: Math.round(utilizationLastWeek),
     utilizationThisMonth: Math.round(utilizationThisMonth),
     utilization3MonthAvg: Math.round(utilization3MonthAvg),
+    // Capacity planning metrics
+    estimatedHoursNextWeek: Math.round(estimatedHoursNextWeek * 10) / 10,
+    estimatedHoursNext2Weeks: Math.round(estimatedHoursNext2Weeks * 10) / 10,
+    estimatedHoursNextMonth: Math.round(estimatedHoursNextMonth * 10) / 10,
+    plannedUtilizationNextWeek: Math.round(plannedUtilizationNextWeek),
+    plannedUtilizationNext2Weeks: Math.round(plannedUtilizationNext2Weeks),
+    plannedUtilizationNextMonth: Math.round(plannedUtilizationNextMonth),
+    // Efficiency metrics
+    efficiencyRatio: Math.round(efficiencyRatio),
+    estimateCoverage: Math.round(estimateCoverage),
     // Task metrics
     activeTasksCount: activeTasks.length,
     completedTasksThisWeek,
     totalTasksThisWeek: thisWeekTasks.length,
+    tasksWithEstimates,
     // Project allocation
     currentProjects,
     // Active tasks
@@ -790,10 +880,14 @@ export async function getTeamAnalytics(teamName: string): Promise<TeamAnalytics 
     const teamUtilizationThisMonth = memberAnalytics.reduce((sum, member) => sum + member.utilizationThisMonth, 0) / totalMembers
     const teamUtilization3MonthAvg = memberAnalytics.reduce((sum, member) => sum + member.utilization3MonthAvg, 0) / totalMembers
 
-    // Calculate capacity forecasting (simplified - would need task estimation data for accuracy)
-    const upcomingWeekCapacity = Math.max(0, 100 - teamUtilizationThisWeek)
-    const upcomingTwoWeeksCapacity = Math.max(0, 100 - (teamUtilizationThisWeek * 0.8)) // Rough estimate
-    const upcomingMonthCapacity = Math.max(0, 100 - (teamUtilizationThisMonth * 0.9)) // Rough estimate
+    // Calculate capacity forecasting based on estimates
+    const teamPlannedUtilizationNextWeek = memberAnalytics.reduce((sum, member) => sum + member.plannedUtilizationNextWeek, 0) / totalMembers
+    const teamPlannedUtilizationNext2Weeks = memberAnalytics.reduce((sum, member) => sum + member.plannedUtilizationNext2Weeks, 0) / totalMembers
+    const teamPlannedUtilizationNextMonth = memberAnalytics.reduce((sum, member) => sum + member.plannedUtilizationNextMonth, 0) / totalMembers
+    
+    const upcomingWeekCapacity = Math.max(0, 100 - teamPlannedUtilizationNextWeek)
+    const upcomingTwoWeeksCapacity = Math.max(0, 100 - teamPlannedUtilizationNext2Weeks)
+    const upcomingMonthCapacity = Math.max(0, 100 - teamPlannedUtilizationNextMonth)
 
     // Calculate task metrics
     const totalActiveTasks = memberAnalytics.reduce((sum, member) => sum + member.activeTasksCount, 0)

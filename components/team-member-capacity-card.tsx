@@ -26,6 +26,12 @@ export function TeamMemberCapacityCard({ member }: TeamMemberCapacityCardProps) 
     return "text-red-600"
   }
 
+  const getAvailabilityColor = (availability: number) => {
+    if (availability >= 70) return "text-green-600"
+    if (availability >= 30) return "text-yellow-600"
+    return "text-red-600"
+  }
+
   const upcomingWeekAvailability = Math.max(0, 100 - member.utilizationThisWeek)
   const upcomingMonthAvailability = Math.max(0, 100 - member.utilizationThisMonth)
 
@@ -88,7 +94,7 @@ export function TeamMemberCapacityCard({ member }: TeamMemberCapacityCardProps) 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span>Next Week</span>
-              <span className={getLoadColor(member.plannedUtilizationNextWeek)}>
+              <span className={getAvailabilityColor(Math.max(0, 100 - member.plannedUtilizationNextWeek))}>
                 {Math.max(0, 100 - member.plannedUtilizationNextWeek)}% available
               </span>
             </div>
@@ -101,7 +107,7 @@ export function TeamMemberCapacityCard({ member }: TeamMemberCapacityCardProps) 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span>Next Month</span>
-              <span className={getLoadColor(member.plannedUtilizationNextMonth)}>
+              <span className={getAvailabilityColor(Math.max(0, 100 - member.plannedUtilizationNextMonth))}>
                 {Math.max(0, 100 - member.plannedUtilizationNextMonth)}% available
               </span>
             </div>

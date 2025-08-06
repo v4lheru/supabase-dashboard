@@ -118,17 +118,42 @@ export async function getClientTasks(clientName: string, timePeriod?: TimePeriod
 /**
  * 📈 Calculates project metrics based on client mapping and tasks
  * Handles both on-going and one-time project types with proper calculations
+ * ONLY COUNTS TIME FROM TEAM MEMBERS IN THE team_members TABLE
  */
-export function calculateProjectMetrics(client: ClientMapping, tasks: ClickUpTask[], allTasks?: ClickUpTask[]): ProjectMetrics {
+export async function calculateProjectMetrics(client: ClientMapping, tasks: ClickUpTask[], allTasks?: ClickUpTask[]): Promise<ProjectMetrics> {
   // Use allTasks for total calculations if provided, otherwise use tasks
   const totalTasks = allTasks || tasks
   
-  // Convert time_spent from milliseconds to hours (ClickUp stores time in milliseconds)
-  const totalTimeSpentMs = totalTasks.reduce((sum, task) => {
-    const timeSpent = parseInt(task.time_spent || '0')
-    return sum + timeSpent
-  }, 0)
+  // Get team members to filter by billable team members only
+  const teamMembers = await getTeamMembers()
+  const validTeamMemberNames = new Set(teamMembers.map(member => member.clickup_name))
   
+  // Helper function to calculate billable hours from tasks (only from team members)
+  const calculateBillableHours = (tasksToProcess: ClickUpTask[]) => {
+    return tasksToProcess.reduce((sum, task) => {
+      const timeSpent = parseInt(task.time_spent || '0')
+      
+      // Skip tasks without assignees
+      if (!task.assignees) return sum
+      
+      // Parse assignees and filter to only team members
+      const assignees = task.assignees.split(',').map(name => name.trim()).filter(name => name)
+      const billableAssignees = assignees.filter(assignee => validTeamMemberNames.has(assignee))
+      
+      // If no billable assignees, don't count this time
+      if (billableAssignees.length === 0) return sum
+      
+      // Calculate the portion of time attributable to billable team members
+      const billableRatio = billableAssignees.length / assignees.length
+      const billableTime = timeSpent * billableRatio
+      
+      return sum + billableTime
+    }, 0)
+  }
+  
+  // Convert time_spent from milliseconds to hours (ClickUp stores time in milliseconds)
+  // ONLY COUNT TIME FROM TEAM MEMBERS IN team_members TABLE
+  const totalTimeSpentMs = calculateBillableHours(totalTasks)
   const hoursSpent = Math.round(totalTimeSpentMs / (1000 * 60 * 60) * 100) / 100
 
   // Calculate this month's metrics
@@ -140,11 +165,8 @@ export function calculateProjectMetrics(client: ClientMapping, tasks: ClickUpTas
     return taskDate >= thisMonthStart
   })
 
-  const thisMonthTimeMs = thisMonthTasks.reduce((sum, task) => {
-    const timeSpent = parseInt(task.time_spent || '0')
-    return sum + timeSpent
-  }, 0)
-  
+  // ONLY COUNT BILLABLE TIME FOR THIS MONTH
+  const thisMonthTimeMs = calculateBillableHours(thisMonthTasks)
   const hoursSpentThisMonth = Math.round(thisMonthTimeMs / (1000 * 60 * 60) * 100) / 100
 
   // Calculate allocated hours based on project type
@@ -312,7 +334,7 @@ export async function getProjectAnalytics(clientName: string, timePeriod?: strin
       return null
     }
 
-    const metrics = calculateProjectMetrics(client, tasks)
+    const metrics = await calculateProjectMetrics(client, tasks)
     // Normalize project type for team member extraction
     const normalizedProjectType: 'On-going' | 'One-Time' | undefined = 
       (client.project_type === 'On-Going' || client.project_type === 'On-going') ? 'On-going' : 

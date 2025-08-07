@@ -240,8 +240,13 @@ export async function calculateProjectMetrics(client: ClientMapping, tasks: Clic
 /**
  * 👥 Extracts team member data from tasks with time-based breakdowns
  * Parses assignees string and calculates individual contributions
+ * ONLY SHOWS TEAM MEMBERS IN THE team_members TABLE
  */
-export function extractTeamMembers(tasks: ClickUpTask[], projectType?: 'On-going' | 'One-Time'): TeamMember[] {
+export async function extractTeamMembers(tasks: ClickUpTask[], projectType?: 'On-going' | 'One-Time'): Promise<TeamMember[]> {
+  // Get team members to filter by billable team members only
+  const teamMembers = await getTeamMembers()
+  const validTeamMemberNames = new Set(teamMembers.map(member => member.clickup_name))
+  
   const memberMap = new Map<string, { 
     hoursSpent: number; 
     taskCount: number; 
@@ -255,7 +260,6 @@ export function extractTeamMembers(tasks: ClickUpTask[], projectType?: 'On-going
 
   tasks.forEach(task => {
     const timeSpentMs = parseInt(task.time_spent || '0')
-    const hoursSpent = timeSpentMs / (1000 * 60 * 60)
     const taskDate = parseInt(task.date_updated)
     const isThisMonth = taskDate >= thisMonthStart
     
@@ -270,7 +274,19 @@ export function extractTeamMembers(tasks: ClickUpTask[], projectType?: 'On-going
       return // Skip if no valid assignees
     }
     
-    assignees.forEach(assignee => {
+    // Filter to only team members
+    const billableAssignees = assignees.filter(assignee => validTeamMemberNames.has(assignee))
+    
+    if (billableAssignees.length === 0) {
+      return // Skip if no billable assignees
+    }
+    
+    // Calculate the portion of time attributable to billable team members
+    const billableRatio = billableAssignees.length / assignees.length
+    const billableTimeMs = timeSpentMs * billableRatio
+    const billableHours = billableTimeMs / (1000 * 60 * 60)
+    
+    billableAssignees.forEach(assignee => {
       const current = memberMap.get(assignee) || { 
         hoursSpent: 0, 
         taskCount: 0, 
@@ -278,7 +294,8 @@ export function extractTeamMembers(tasks: ClickUpTask[], projectType?: 'On-going
         taskCountThisMonth: 0 
       }
       
-      const splitHours = hoursSpent / assignees.length // Split hours among assignees
+      // Split billable hours among billable assignees only
+      const splitHours = billableHours / billableAssignees.length
       
       memberMap.set(assignee, {
         hoursSpent: current.hoursSpent + splitHours,
@@ -340,7 +357,7 @@ export async function getProjectAnalytics(clientName: string, timePeriod?: strin
       (client.project_type === 'On-Going' || client.project_type === 'On-going') ? 'On-going' : 
       client.project_type === 'One-Time' ? 'One-Time' : undefined
     
-    const teamMembers = extractTeamMembers(tasks, normalizedProjectType)
+    const teamMembers = await extractTeamMembers(tasks, normalizedProjectType)
 
     console.log('✅ Analytics calculated for', clientName, '- Tasks:', tasks.length, 'Hours:', metrics.hoursSpent)
 

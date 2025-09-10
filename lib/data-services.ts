@@ -431,7 +431,7 @@ export async function getCompanyProjectsAnalytics(
     const clients = await getClientMappings()
     
     // Filter by company based on clickup_project_name
-    const companyFilter = company === 'veza' ? 'Projects' : 'Shadow Digital Projects'
+    const companyFilter = company === 'veza' ? 'Veza Digital Projects' : 'Shadow Digital Projects'
     
     let filteredClients = clients.filter(client => {
       const matchesCompany = client.clickup_project_name === companyFilter

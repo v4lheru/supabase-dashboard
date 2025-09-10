@@ -105,7 +105,7 @@ export function ProjectSidebar({ selectedProject, onProjectSelect }: ProjectSide
   }, [])
 
   // Filter clients by company
-  const vezaClients = clients.filter(client => client.clickup_project_name === 'Projects')
+  const vezaClients = clients.filter(client => client.clickup_project_name === 'Veza Digital Projects')
   const shadowClients = clients.filter(client => client.clickup_project_name === 'Shadow Digital Projects')
 
   // Filter function for hide blanks

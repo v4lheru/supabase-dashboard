@@ -5,7 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Calendar, TrendingUp, Clock, DollarSign } from "lucide-react"
-import { getProjectAnalytics, getClientTasksForMonth, calculateProjectMetrics } from "@/lib/data-services"
+import { getClientTasksForMonth, calculateProjectMetrics } from "@/lib/data-services"
+import { getProjectAnalytics } from "@/lib/api-client"
 import { ClientMapping, ProjectAnalytics } from "@/lib/types"
 import { calculateProjectHealth, ProjectHealthStatus, getNoDataHealth } from "@/lib/project-health"
 
@@ -45,7 +46,7 @@ function ProjectHistoricalCard({ client }: ProjectHistoricalCardProps) {
             
             if (monthlyTasks.length > 0) {
               // Calculate metrics for this month
-              const metrics = calculateProjectMetrics(client, monthlyTasks)
+              const metrics = await calculateProjectMetrics(client, monthlyTasks)
               const health = calculateProjectHealth(metrics.profitMargin)
               
               last6Months.push({

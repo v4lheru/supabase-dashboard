@@ -5,7 +5,9 @@ class DashboardApiClient {
   private baseUrl: string
 
   constructor() {
-    this.baseUrl = process.env.NEXT_PUBLIC_APP_URL || (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')
+    // Use Railway production URL if available, otherwise fallback to window.location.origin or localhost
+    this.baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                   (typeof window !== 'undefined' ? window.location.origin : 'http://localhost:3000')
   }
 
   private async fetchApi<T>(endpoint: string, params: Record<string, string> = {}): Promise<T> {

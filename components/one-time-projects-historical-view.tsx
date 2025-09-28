@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Calendar, TrendingUp, Clock, DollarSign, Target, CheckCircle } from "lucide-react"
-import { getProjectAnalytics } from "@/lib/data-services"
+import { getProjectAnalytics } from "@/lib/api-client"
 import { ClientMapping, ProjectAnalytics } from "@/lib/types"
 import { calculateProjectHealth, ProjectHealthStatus, getNoDataHealth } from "@/lib/project-health"
 

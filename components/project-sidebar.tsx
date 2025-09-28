@@ -15,7 +15,8 @@ import {
   SidebarMenuSubItem,
 } from "@/components/ui/sidebar"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { getClientMappings, getProjectAnalytics } from "@/lib/data-services"
+import { getClientMappings } from "@/lib/data-services"
+import { getProjectAnalytics } from "@/lib/api-client"
 import { ClientMapping, ProjectAnalytics } from "@/lib/types"
 import { calculateProjectHealth, getNoDataHealth } from "@/lib/project-health"
 

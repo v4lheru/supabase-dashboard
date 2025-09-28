@@ -16,7 +16,8 @@ import { AllProjectsOverview } from "@/components/all-projects-overview"
 import { ProjectsHistoricalView } from "@/components/projects-historical-view"
 import { ProjectTypeDashboard } from "@/components/project-type-dashboard"
 import { TeamDashboard } from "@/components/team-dashboard"
-import { getProjectAnalytics, getAllProjectsAnalytics, getClientMappings, getCompanyProjectsAnalytics } from "@/lib/data-services"
+import { getClientMappings } from "@/lib/data-services"
+import { getProjectAnalytics, getAllProjectsAnalytics, getCompanyProjectsAnalytics } from "@/lib/api-client"
 import { ProjectAnalytics, ProjectTypeFilter, ProjectStatusFilter, ClientMapping } from "@/lib/types"
 
 interface ProjectDashboardProps {

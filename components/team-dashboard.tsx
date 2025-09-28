@@ -8,7 +8,7 @@ import { TaskStatusBadge } from "@/components/task-status-badge"
 import { CapacityMetricsCard } from "@/components/capacity-metrics-card"
 import { TeamMemberCapacityCard } from "@/components/team-member-capacity-card"
 import { Users, Clock, CheckCircle, AlertCircle, BarChart3 } from "lucide-react"
-import { getTeamAnalytics } from "@/lib/data-services"
+import { getTeamAnalytics } from "@/lib/api-client"
 import { TeamAnalytics } from "@/lib/types"
 
 interface TeamDashboardProps {

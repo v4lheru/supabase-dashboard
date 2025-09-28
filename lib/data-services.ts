@@ -1,4 +1,4 @@
-import { supabase } from './supabase'
+import { supabase, withRetry } from './supabase'
 import { ClickUpTask, ClientMapping, ProjectMetrics, TeamMember, ProjectAnalytics, TimePeriod, ProjectTypeFilter, ProjectStatusFilter, TeamMemberMapping, TeamMemberAnalytics, TeamAnalytics } from './types'
 
 /**
@@ -6,23 +6,25 @@ import { ClickUpTask, ClientMapping, ProjectMetrics, TeamMember, ProjectAnalytic
  * This is the source of truth for client configuration and project types
  */
 export async function getClientMappings(): Promise<ClientMapping[]> {
-  try {
-    const { data, error } = await supabase
-      .from('client_mappings')
-      .select('*')
-      .order('client_name')
+  return withRetry(async () => {
+    try {
+      const { data, error } = await supabase
+        .from('client_mappings')
+        .select('*')
+        .order('client_name')
 
-    if (error) {
-      console.error('❌ Error fetching client mappings:', error)
-      throw error
+      if (error) {
+        console.error('❌ Error fetching client mappings:', error)
+        throw error
+      }
+
+      console.log('✅ Successfully fetched client mappings:', data?.length || 0, 'clients')
+      return data || []
+    } catch (error) {
+      console.error('💥 Failed to fetch client mappings:', error)
+      throw error // Re-throw for retry mechanism
     }
-
-    console.log('✅ Successfully fetched client mappings:', data?.length || 0, 'clients')
-    return data || []
-  } catch (error) {
-    console.error('💥 Failed to fetch client mappings:', error)
-    return []
-  }
+  }, 3, 2000) // 3 retries with 2 second initial delay
 }
 
 /**
